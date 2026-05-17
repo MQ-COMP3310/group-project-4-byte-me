@@ -1,0 +1,51 @@
+{% extends 'base.html' %} {% block content %}
+<div class="container base-content">
+    <div class="row">
+        <div class="col">
+            <br>
+            <h3 class="text-center">Admin — Highscores</h3>
+            <table class="table table-striped table-bordered table-hover">
+                <thead class="thead-dark">
+                    <tr>
+                        <th>Rank</th>
+                        <th>Username</th>
+                        <th>Score</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in highscores %}
+                    <tr>
+                        <th scope="row">{{ loop.index }}</th>
+                        <td>{{ entry['username'] }}</td>
+                        <td>{{ entry['score'] }}</td>
+                        <td>{{ entry['created_at'] }}</td>
+                        <td>
+                            <!-- Edit score form -->
+                            <!-- SECURITY: CSRF token on every admin POST — prevents cross-site request forgery (OWASP A05) -->
+                            <form method="POST" action="{{ url_for('admin_edit_highscore', entry_id=entry['id']) }}" style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="number" name="score" value="{{ entry['score'] }}" style="width:80px;" min="0">
+                                <button type="submit" class="btn btn-sm btn-primary">Update</button>
+                            </form>
+                            <!-- Delete entry form -->
+                            <form method="POST" action="{{ url_for('admin_delete_highscore', entry_id=entry['id']) }}" style="display:inline;" onsubmit="return confirm('Delete this entry?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not highscores %}
+                    <tr>
+                        <td colspan="5" class="text-center">No highscore entries yet.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+            <a href="{{ url_for('highscores') }}" class="btn btn-secondary">Back to Highscores</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

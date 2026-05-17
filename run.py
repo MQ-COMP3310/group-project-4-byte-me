@@ -1,234 +1,321 @@
 import os
-import sys
-from importlib import reload
-from flask import Flask, render_template, redirect, request, url_for
 
-# Needed for encoding to utf8
-reload(sys)
+# SECURITY: Load secrets from .env file — never hardcode credentials in source (CWE-798)
+from dotenv import load_dotenv
+load_dotenv()
+
+from flask import Flask, render_template, redirect, request, url_for, session, abort
+from flask_dance.contrib.github import make_github_blueprint, github
+from flask_dance.consumer import oauth_authorized
+from flask_login import (
+    LoginManager, UserMixin,
+    login_user, logout_user, login_required, current_user,
+)
+from flask_wtf import CSRFProtect
+
+import db as database
+
+# ---------------------------------------------------------------------------
+# App setup
+# ---------------------------------------------------------------------------
 
 app = Flask(__name__)
-app.secret_key = 'some_secret'
-data = []
+
+# SECURITY: Secret key loaded from environment variable — never hardcoded (CWE-798)
+app.config["SECRET_KEY"] = os.environ["SECRET_KEY"]
+
+# SECURITY: debug=False in production — interactive debugger not exposed to clients
+app.config["DEBUG"] = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
+
+app.config["WTF_CSRF_ENABLED"] = True
+
+# SECURITY: CSRF token required on all state-changing POST forms via Flask-WTF CSRFProtect
+csrf = CSRFProtect(app)
+
+login_manager = LoginManager(app)
+login_manager.login_view = "index"
+
+# SECURITY: OAuth state parameter prevents CSRF on the authorisation flow
+#           (flask-dance manages the state parameter automatically)
+github_bp = make_github_blueprint(
+    client_id=os.environ.get("GITHUB_OAUTH_CLIENT_ID"),
+    client_secret=os.environ.get("GITHUB_OAUTH_CLIENT_SECRET"),
+    redirect_to="welcome",
+)
+app.register_blueprint(github_bp, url_prefix="/login")
+
+app.teardown_appcontext(database.close_db)
 
 
-def write_to_file(filename, data):
-    with open(filename, "a+") as file:
-        file.writelines(data)
+# ---------------------------------------------------------------------------
+# User model
+# ---------------------------------------------------------------------------
+
+class User(UserMixin):
+    def __init__(self, id, github_id, username, email, role):
+        self.id = id
+        self.github_id = github_id
+        self.username = username
+        self.email = email
+        self.role = role
+
+    @property
+    def is_admin(self):
+        return self.role == "admin"
 
 
-#This is where the riddles live
-def riddle():
-    riddles = []
-    with open("data/-riddles.txt", "r") as e:
-        lines = e.read().splitlines()
-    for line in lines:
-        riddles.append(line)
-    return riddles
+@login_manager.user_loader
+def load_user(user_id):
+    row = database.get_db().execute(
+        "SELECT * FROM users WHERE id = ?", (user_id,)
+    ).fetchone()
+    if row is None:
+        return None
+    return User(row["id"], row["github_id"], row["username"], row["email"], row["role"])
 
 
-# This is where the answers for the riddles live
-def riddle_answers():
-    answers = []
-    with open("data/-answers.txt", "r") as e:
-        lines = e.read().splitlines()
-    for line in lines:
-        answers.append(line)
-    return answers
+# ---------------------------------------------------------------------------
+# OAuth callback
+# ---------------------------------------------------------------------------
+
+@oauth_authorized.connect_via(github_bp)
+def github_logged_in(blueprint, token):
+    if not token:
+        return False
+
+    resp = blueprint.session.get("/user")
+    if not resp.ok:
+        return False
+
+    user_info = resp.json()
+    github_id = user_info["id"]
+    # SECURITY: Only GitHub ID and public profile stored — minimal data principle (GDPR / privacy)
+    # SECURITY: Username comes from verified OAuth identity, not a user-controlled URL parameter — eliminates IDOR
+    username = user_info.get("login", "")
+    email = user_info.get("email", "")
+
+    user_row = database.get_or_create_user(github_id, username, email)
+    user = User(
+        user_row["id"], user_row["github_id"],
+        user_row["username"], user_row["email"], user_row["role"],
+    )
+
+    # SECURITY: Flask-Login regenerates session on login — prevents session fixation (OWASP A07)
+    login_user(user)
+
+    # Return False so flask-dance does not store the OAuth token in the session
+    return False
 
 
-# Clear functions for wrong answers and score
-def clear_guesses(username):
-    with open("data/user-" + username + "-guesses.txt", "w"):
-        return
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-def clear_score(username):
-    with open("data/user-" + username + "-score.txt", "w"):
-        return
-
-
-# Wrong answer handling
-def store_all_attempts(username):
-    attempts = []
-    with open("data/user-" + username + "-guesses.txt", "r") as incorrect_attempts:
-        attempts = incorrect_attempts.readlines()
-    return attempts
-
-def num_of_attempts():
-    attempts = store_all_attempts(username)
-    return len(attempts)
-
-def attempts_remaining():
-    remaining_attempts = 3 - num_of_attempts()
-    return remaining_attempts
+def _riddles():
+    with open("data/-riddles.txt", "r") as f:
+        return f.read().splitlines()
 
 
-# Score gets lower the more attempts used
-def add_to_score():
-    round_score = 4 - num_of_attempts()
-    return round_score
-
-#Adds all the scores from all riddles to make final score
-def end_score(username):
-    with open("data/user-" + username + "-score.txt", "r") as numbers_file:
-        total = 0
-        for line in numbers_file:
-            try:
-                total += int(line)
-            except ValueError:
-                pass
-    return total
-
-#Add final score to highscore list after the last riddle
-def final_score(username):
-    score = str(end_score(username))
-
-    if username != "" and score != "":
-        with open("data/-highscores.txt", "a") as file:
-                file.writelines(username + "\n")
-                file.writelines(score + "\n")
-    else:
-        return
-
-#Used to retrieve scores from highscore file for use on highscore page
-def get_scores():
-    usernames = []
-    scores = []
-
-    with open("data/-highscores.txt", "r") as file:
-        lines = file.read().splitlines()
-    # Separates usernames and scores
-    for i, text in enumerate(lines):
-        if i%2 ==0:
-            usernames.append(text)
-        else:
-            scores.append(text)
-    # Sorts and zips all the highscore info up for use on highscore page
-    usernames_and_scores = sorted(zip(usernames, scores), key=lambda x: x[1], reverse=True)
-    return usernames_and_scores
+def _answers():
+    with open("data/-answers.txt", "r") as f:
+        return f.read().splitlines()
 
 
-# HOMEPAGE
-@app.route('/', methods=["GET", "POST"])
+# ---------------------------------------------------------------------------
+# Public routes
+# ---------------------------------------------------------------------------
+
+@app.route("/", methods=["GET"])
 def index():
-    if request.method == "POST":
-        global username
-        username = request.form['username'].lower()
-        if username == "":
-            return render_template("index.html", page_title="Home", username=username)
-        else:
-            return redirect(url_for('user', username=username))
+    if current_user.is_authenticated:
+        return redirect(url_for("welcome"))
     return render_template("index.html", page_title="Home")
 
 
-# USER WELCOME PAGE
-@app.route('/<username>', methods=["GET", "POST"])
-def user(username):
-
-    # Create a User Specific File for Score Keeping etc.
-    open("data/user-" + username + "-score.txt", 'a').close()
-    clear_score(username)
-    open("data/user-" + username + "-guesses.txt", 'a').close()
-    clear_guesses(username)
-
-    if request.method =="POST":
-        return redirect(url_for('game', username=username))
-
-    return render_template("welcome.html",
-                            username=username)
+@app.route("/highscores")
+def highscores():
+    rows = database.get_highscores()
+    usernames_and_scores = [(row["username"], row["score"]) for row in rows]
+    return render_template(
+        "highscores.html",
+        page_title="Highscores",
+        usernames_and_scores=usernames_and_scores,
+    )
 
 
-# GAME PAGE
-@app.route('/<username>/game', methods=["GET", "POST"])
-def game(username):
+# ---------------------------------------------------------------------------
+# Auth routes
+# ---------------------------------------------------------------------------
 
-    remaining_attempts = 3
-    riddles = riddle()
-    riddle_index = 0
-    answers = riddle_answers()
-    score = 0
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    session.clear()
+    return redirect(url_for("index"))
+
+
+# ---------------------------------------------------------------------------
+# Game routes (all require login)
+# ---------------------------------------------------------------------------
+
+@app.route("/welcome", methods=["GET", "POST"])
+@login_required
+def welcome():
+    if request.method == "POST":
+        # Reset game state stored in the signed session cookie
+        session["riddle_index"] = 0
+        session["guesses"] = []
+        session["score"] = 0
+        return redirect(url_for("game"))
+    return render_template("welcome.html", username=current_user.username)
+
+
+@app.route("/game", methods=["GET", "POST"])
+@login_required
+def game():
+    # Guard: redirect to welcome if no game has been started
+    if "riddle_index" not in session:
+        return redirect(url_for("welcome"))
+
+    riddle_list = _riddles()
+    answers = _answers()
+
+    riddle_index = session.get("riddle_index", 0)
+    guesses = session.get("guesses", [])
+    score = session.get("score", 0)
+
+    # SECURITY: riddle_index validated against riddles list length before use — prevents IndexError (OWASP A03)
+    if riddle_index >= len(riddle_list):
+        return redirect(url_for("congrats"))
 
     if request.method == "POST":
+        submitted_index = request.form.get("riddle_index", "")
+        try:
+            submitted_index = int(submitted_index)
+        except ValueError:
+            abort(400)
 
-        riddle_index = int(request.form["riddle_index"])
-        user_response = request.form["answer"].title()
+        # SECURITY: riddle_index validated against riddles list length — prevents IndexError (OWASP A03)
+        if submitted_index < 0 or submitted_index >= len(riddle_list):
+            abort(400)
 
-        write_to_file("data/user-" + username + "-guesses.txt", user_response + "\n")
+        user_response = request.form.get("answer", "").title()
 
-        # Compare the user's answer to the correct answer of the riddle
-        if answers[riddle_index] == user_response:
-            # Correct answer
-            if riddle_index < 9:
-                # If riddle number is less than 10 & answer is correct: add score, clear wrong answers file and go to next riddle
-                write_to_file("data/user-" + username + "-score.txt", str(add_to_score()) + "\n")
-                clear_guesses(username)
-                riddle_index += 1
-            else:
-                # If right answer on LAST riddle: add score, submit score to highscore file and redirect to congrats page
-                write_to_file("data/user-" + username + "-score.txt", str(add_to_score()) + "\n")
-                final_score(username)
-                return redirect(url_for('congrats', username=username, score=end_score(username)))
+        if answers[submitted_index] == user_response:
+            # Correct — round score decreases by one per wrong guess (max 3)
+            round_score = 3 - len(guesses)
+            score += round_score
+            riddle_index = submitted_index + 1
 
+            if riddle_index >= len(riddle_list):
+                # Final riddle answered — persist score and redirect to congrats
+                session["score"] = score
+                session["riddle_index"] = riddle_index
+                database.add_highscore(current_user.id, score)
+                return redirect(url_for("congrats"))
+
+            # Advance to next riddle; clear per-riddle guesses
+            session["riddle_index"] = riddle_index
+            session["guesses"] = []
+            session["score"] = score
+            guesses = []
         else:
-            # Incorrect answer
-            if attempts_remaining() > 0:
-                # if answer was wrong and more than 0 attempts remaining, reload current riddle
-                riddle_index = riddle_index
-            else:
-                # If all attempts are used up, redirect to Gameover page
-                return redirect(url_for('gameover', username=username))
+            # Wrong answer — append and check if attempts exhausted
+            guesses.append(user_response)
+            session["guesses"] = guesses
+            if len(guesses) >= 3:
+                return redirect(url_for("gameover"))
 
-    return render_template("game.html",
-                            username=username, riddle_index=riddle_index, riddles=riddles,
-                            answers=answers, attempts=store_all_attempts(username), remaining_attempts=attempts_remaining(), score=end_score(username))
-
-
-# GAMEOVER PAGE
-@app.route('/<username>/gameover', methods=["GET", "POST"])
-def gameover(username):
-
-    clear_guesses(username)
-    clear_score(username)
-
-    rem_attempts = 3
-    riddles = riddle()
-    riddle_index = 0
-    answers = riddle_answers()
-    score = 0
-
-    if request.method =="POST":
-
-        return redirect(url_for('game', username=username))
-
-    return render_template("gameover.html",
-                            username=username)
+    remaining_attempts = 3 - len(session.get("guesses", []))
+    return render_template(
+        "game.html",
+        riddle_index=session.get("riddle_index", 0),
+        riddles=riddle_list,
+        attempts=session.get("guesses", []),
+        remaining_attempts=remaining_attempts,
+        score=session.get("score", 0),
+    )
 
 
-# FINISH PAGE
-@app.route('/<username>/congratulations', methods=["GET", "POST"])
-def congrats(username):
+@app.route("/gameover", methods=["GET", "POST"])
+@login_required
+def gameover():
+    if request.method == "POST":
+        return redirect(url_for("welcome"))
 
-    clear_guesses(username)
+    # Record the score (even 0) on GET — every attempt is persisted, win or lose
+    score = session.get("score", 0)
+    database.add_highscore(current_user.id, score)
 
-    if request.method =="POST":
-        usernames_and_scores = get_scores()
-        return redirect(url_for('highscores', usernames_and_scores=usernames_and_scores))
+    session.pop("riddle_index", None)
+    session.pop("guesses", None)
+    session.pop("score", None)
 
-    return render_template("congratulations.html",
-                            username=username, score=end_score(username))
-
-
-# HIGHSCORE PAGE
-@app.route('/highscores')
-def highscores():
-
-    usernames_and_scores = get_scores()
-
-    return render_template("highscores.html", page_title="Highscores", usernames_and_scores=usernames_and_scores)
+    return render_template("gameover.html", username=current_user.username)
 
 
-if __name__ == '__main__':
+@app.route("/congratulations", methods=["GET", "POST"])
+@login_required
+def congrats():
+    score = session.get("score", 0)
+
+    if request.method == "POST":
+        return redirect(url_for("highscores"))
+
+    return render_template(
+        "congratulations.html",
+        username=current_user.username,
+        score=score,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Admin routes
+# ---------------------------------------------------------------------------
+
+@app.route("/admin")
+@login_required
+def admin():
+    # SECURITY: Role checked server-side before every admin operation — no client-supplied role claim trusted
+    if not current_user.is_admin:
+        abort(403)
+    rows = database.get_highscores()
+    return render_template("admin.html", highscores=rows)
+
+
+@app.route("/admin/highscores/<int:entry_id>/delete", methods=["POST"])
+@login_required
+def admin_delete_highscore(entry_id):
+    # SECURITY: Role checked server-side before every admin operation — no client-supplied role claim trusted
+    if not current_user.is_admin:
+        abort(403)
+    database.delete_highscore(entry_id)
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/highscores/<int:entry_id>/edit", methods=["POST"])
+@login_required
+def admin_edit_highscore(entry_id):
+    # SECURITY: Role checked server-side before every admin operation — no client-supplied role claim trusted
+    if not current_user.is_admin:
+        abort(403)
+    new_score = request.form.get("score", "")
+    try:
+        new_score = int(new_score)
+    except ValueError:
+        abort(400)
+    database.update_highscore(entry_id, new_score)
+    return redirect(url_for("admin"))
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    database.init_db()
     ip = "127.0.0.1"
     port = 8000
-    app.run(host=ip,
-            port=port,
-            debug=True)
+    # SECURITY: debug mode controlled via environment variable — not hardcoded to True
+    app.run(host=ip, port=port, debug=app.config["DEBUG"])

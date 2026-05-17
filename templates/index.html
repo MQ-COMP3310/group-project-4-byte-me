@@ -3,14 +3,11 @@
     <div class="row">
         <div class="col text-center">
             <br>
-            <form method="POST">
-                <label for="username">To Continue, Please Enter Your Name</label>
-                <br>
-                <input type="text" id="username" name="username" autofocus/>
-                <br>
-                <br>
-                <button class="btn btn-dark hvr-round-corners">Submit</button>
-            </form>
+            <h2>Welcome to Riddle Me This</h2>
+            <p>Login with your GitHub account to play.</p>
+            <a href="{{ url_for('github.login') }}" class="btn btn-dark hvr-round-corners">
+                <i class="fab fa-github"></i> Login with GitHub
+            </a>
         </div>
     </div>
 </div>

@@ -6,6 +6,8 @@
             <p>You made it to the end.</p>
             <p>Your final score was {{ score }}</p>
             <form method="POST">
+                <!-- SECURITY: CSRF token prevents cross-site request forgery (OWASP A05) -->
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="highscores" value="highscores">
                 <button class="btn btn-dark hvr-round-corners">Highscores</button>
             </form>
