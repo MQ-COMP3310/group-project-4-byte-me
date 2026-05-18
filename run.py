@@ -4,9 +4,11 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-from flask import Flask, render_template, redirect, request, url_for, session, abort
+from flask import Flask, render_template, redirect, request, url_for, session, abort, flash
 from flask_dance.contrib.github import make_github_blueprint, github
-from flask_dance.consumer import oauth_authorized
+from flask_dance.consumer import oauth_authorized, oauth_error
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_login import (
     LoginManager, UserMixin,
     login_user, logout_user, login_required, current_user,
@@ -21,10 +23,9 @@ import db as database
 
 app = Flask(__name__)
 
-# SECURITY: Secret key loaded from environment variable — never hardcoded (CWE-798)
+# SR5: Secret key loaded from environment variable — never hardcoded (CWE-798)
 app.config["SECRET_KEY"] = os.environ["SECRET_KEY"]
 
-# SECURITY: debug=False in production — interactive debugger not exposed to clients
 app.config["DEBUG"] = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
 
 app.config["WTF_CSRF_ENABLED"] = True
@@ -32,10 +33,17 @@ app.config["WTF_CSRF_ENABLED"] = True
 # SECURITY: CSRF token required on all state-changing POST forms via Flask-WTF CSRFProtect
 csrf = CSRFProtect(app)
 
+# SR8: Rate limiting — mitigates DoS on OAuth initiation endpoint (OWASP A02/A07)
+limiter = Limiter(
+    app,
+    key_func=get_remote_address,
+    default_limits=[],   # no global default; limit only the login route
+)
+
 login_manager = LoginManager(app)
 login_manager.login_view = "index"
 
-# SECURITY: OAuth state parameter prevents CSRF on the authorisation flow
+# SR7: OAuth state parameter prevents CSRF on the authorisation flow
 #           (flask-dance manages the state parameter automatically)
 github_bp = make_github_blueprint(
     client_id=os.environ.get("GITHUB_OAUTH_CLIENT_ID"),
@@ -43,6 +51,9 @@ github_bp = make_github_blueprint(
     redirect_to="welcome",
 )
 app.register_blueprint(github_bp, url_prefix="/login")
+
+#SR8: 10 requests/minute per IP on login — prevents brute-force/DoS (OWASP A07 and A09)
+limiter.limit("10 per minute")(github_bp.login)
 
 app.teardown_appcontext(database.close_db)
 
@@ -75,22 +86,45 @@ def load_user(user_id):
 
 
 # ---------------------------------------------------------------------------
-# OAuth callback
+# OAuth callback 
 # ---------------------------------------------------------------------------
+
+#All error handling is part of SR7
+
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    # SECURITY: Log for monitoring; return safe page without leaking internals (OWASP A09)
+    app.logger.warning("Rate limit exceeded from %s", request.remote_addr)
+    return render_template("errors/429.html"), 429
+
+
+@app.errorhandler(500)
+def internal_error(e):
+    app.logger.error("Internal server error: %s", str(e))
+    return render_template("errors/500.html"), 500
+
 
 @oauth_authorized.connect_via(github_bp)
 def github_logged_in(blueprint, token):
     if not token:
+        # SECURITY: Flash error without leaking OAuth/API details to client (OWASP A09)
+        flash("Login failed: no token received from GitHub. Please try again.", "danger")
         return False
 
     resp = blueprint.session.get("/user")
     if not resp.ok:
+        # SECURITY: Flash error without leaking OAuth/API details to client (OWASP A09)
+        flash(
+            "Login failed: could not retrieve your GitHub profile. "
+            "GitHub may be temporarily unavailable — please try again later.",
+            "danger",
+        )
         return False
 
     user_info = resp.json()
     github_id = user_info["id"]
-    # SECURITY: Only GitHub ID and public profile stored — minimal data principle (GDPR / privacy)
-    # SECURITY: Username comes from verified OAuth identity, not a user-controlled URL parameter — eliminates IDOR
+    # SR6: Only GitHub ID and public profile stored — minimal data principle (GDPR / privacy)
+
     username = user_info.get("login", "")
     email = user_info.get("email", "")
 
@@ -100,11 +134,28 @@ def github_logged_in(blueprint, token):
         user_row["username"], user_row["email"], user_row["role"],
     )
 
-    # SECURITY: Flask-Login regenerates session on login — prevents session fixation (OWASP A07)
+    # SR5 Flask-Login regenerates session on login 
     login_user(user)
 
-    # Return False so flask-dance does not store the OAuth token in the session
+    #SR6 Return False so flask-dance does not store the OAuth token in the session
     return False
+
+
+@oauth_error.connect_via(github_bp)
+def github_oauth_error(blueprint, error, error_description, error_uri):
+    # SR7: Full error logged server-side; only safe summary shown to user 
+    app.logger.warning(
+        "GitHub OAuth error: error=%s description=%s uri=%s",
+        error, error_description, error_uri,
+    )
+    if error == "access_denied":
+        flash("Login cancelled — you did not authorise access on GitHub.", "warning")
+    else:
+        flash(
+            "GitHub login error: please try again. "
+            "If the problem persists, GitHub may be experiencing issues.",
+            "danger",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +236,7 @@ def game():
     guesses = session.get("guesses", [])
     score = session.get("score", 0)
 
-    # SECURITY: riddle_index validated against riddles list length before use — prevents IndexError (OWASP A03)
+    # SECURITY: riddle_index validated against riddles list length before use — prevents IndexError 
     if riddle_index >= len(riddle_list):
         return redirect(url_for("congrats"))
 
@@ -196,7 +247,7 @@ def game():
         except ValueError:
             abort(400)
 
-        # SECURITY: riddle_index validated against riddles list length — prevents IndexError (OWASP A03)
+        # SECURITY: riddle_index validated against riddles list length — prevents IndexError
         if submitted_index < 0 or submitted_index >= len(riddle_list):
             abort(400)
 
@@ -244,7 +295,7 @@ def gameover():
     if request.method == "POST":
         return redirect(url_for("welcome"))
 
-    # Record the score (even 0) on GET — every attempt is persisted, win or lose
+    # Record the score (even 0) — every attempt is persisted, win or lose
     score = session.get("score", 0)
     database.add_highscore(current_user.id, score)
 

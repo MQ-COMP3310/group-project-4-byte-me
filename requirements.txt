@@ -6,3 +6,4 @@ Flask-Login==0.6.3
 Flask-WTF==1.2.1
 python-dotenv==1.0.1
 blinker==1.7.0
+Flask-Limiter==2.8.1
