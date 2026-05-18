@@ -305,7 +305,11 @@ def admin_edit_highscore(entry_id):
         new_score = int(new_score)
     except ValueError:
         abort(400)
-    database.update_highscore(entry_id, new_score)
+    if 0 <= new_score and new_score <= 30:
+        database.update_highscore(entry_id, new_score)
+    else: 
+        app.logger.error("value needs to be between 0 and 30")
+    # database.update_highscore(entry_id, new_score)
     return redirect(url_for("admin"))
 
 
