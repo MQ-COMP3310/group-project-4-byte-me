@@ -116,3 +116,40 @@ Set `ADMIN_GITHUB_ID` to your numeric GitHub ID in `.env`. On your next login th
 - Admin role assigned server-side from env var — no client-supplied role trusted
 - Flask-Login session regenerated on login — prevents session fixation
 - Only public GitHub profile data stored (GitHub ID, login, email) — minimal data principle
+
+---
+
+## Session Log — 2026-05-18
+
+### Work Completed
+
+#### Rate Limiting
+- Added `Flask-Limiter` to `requirements.txt`
+- Applied `@limiter.limit("5 per minute")` to the `/login/github` route to throttle brute-force attempts
+- Registered `@app.errorhandler(429)` → `templates/errors/429.html` so rate-limit hits return a styled page instead of Flask's default
+
+#### Error Handlers + Templates
+- Registered `@app.errorhandler(400)` → `templates/errors/400.html` ("Bad Request")
+- Registered `@app.errorhandler(403)` → `templates/errors/403.html` ("Forbidden")
+- All error pages extend `base.html` and include a back-to-home button — consistent UX, no internal detail leaked
+
+#### Security Requirement Comments (`SRX`)
+- Added inline comments throughout `run.py` and `db.py` referencing named security requirements (e.g. `# SECURITY: SR3 — ...`) to satisfy the report's traceability requirement
+
+#### Admin Score Bounds Fix
+- `POST /admin/highscores/<id>/edit` now rejects scores outside `[0, 30]` with `abort(400)` — previously no server-side bounds check existed
+
+#### Documentation
+- Recorded access-control rules, endpoints, and DB schema in the shared Google Docs group project document
+
+---
+
+### Next Steps (Action Items)
+
+| # | Item | Owner | Notes |
+|---|------|-------|-------|
+| 1 | Improve GET-route error handling | Alik | Many GET routes currently fall through to a 500 on unexpected state; replace with explicit `abort(404)` / redirects where appropriate |
+| 2 | Group sync — task allocation | All | Identify who needs help; unblock remaining Part 2/3 tasks |
+| 3 | Threat model update (Task 6) | Alik | Update STRIDE diagram + trust boundaries to reflect auth feature |
+| 4 | Agree on 2 additional features (Part 3) | All | Needed before Task 8/9 implementation can start |
+| 5 | Low-severity vulnerability triage | Alik | Address remaining findings from CLAUDE.md if time permits (e.g. silent score-parse errors, highscores IndexError) |
