@@ -176,5 +176,5 @@ cython_debug/
 
 
 # random stuff 
-data/
 CLAUDE.md
+.assignment_screenshots/

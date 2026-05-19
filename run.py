@@ -35,7 +35,7 @@ csrf = CSRFProtect(app)
 
 # SR8: Rate limiting — mitigates DoS on OAuth initiation endpoint (OWASP A02/A07)
 limiter = Limiter(
-    app,
+    app=app,
     key_func=get_remote_address,
     default_limits=[],   # no global default; limit only the login route
 )
@@ -56,7 +56,15 @@ app.register_blueprint(github_bp, url_prefix="/login")
 
 #SR8: 10 requests/minute per IP on login — prevents brute-force/DoS 
 # also, crazy that you can just put "10 per minute" and the limitter library gets what im saying!
-limiter.limit("10 per minute")(github_bp.login)
+
+# so used the following function to see what the actual route was that flask was using from the blueprint
+# print("VIEW FUNCTIONS:", app.view_functions.keys())
+
+# now the whole view function is wrapped by the limitter
+app.view_functions["github.login"] = limiter.limit("10 per minute")(
+    app.view_functions["github.login"]
+)
+
 
 app.teardown_appcontext(database.close_db)
 
@@ -377,3 +385,5 @@ if __name__ == "__main__":
     ip = "127.0.0.1"
     port = 8000
     app.run(host=ip, port=port, debug=app.config["DEBUG"])
+    print("VIEW FUNCTIONS:", app.view_functions.keys())
+
