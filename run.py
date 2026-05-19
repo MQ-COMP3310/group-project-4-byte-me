@@ -1,6 +1,6 @@
 import os
 
-# SECURITY: Load secrets from .env file — never hardcode credentials in source (CWE-798)
+# SR5: Load secrets from .env file — never hardcode credentials in source (CWE-798)
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -30,7 +30,7 @@ app.config["DEBUG"] = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
 
 app.config["WTF_CSRF_ENABLED"] = True
 
-# SECURITY: CSRF token required on all state-changing POST forms via Flask-WTF CSRFProtect
+# SR: CSRF token required on all state-changing POST forms via Flask-WTF CSRFProtect
 csrf = CSRFProtect(app)
 
 # SR8: Rate limiting — mitigates DoS on OAuth initiation endpoint (OWASP A02/A07)
@@ -50,9 +50,12 @@ github_bp = make_github_blueprint(
     client_secret=os.environ.get("GITHUB_OAUTH_CLIENT_SECRET"),
     redirect_to="welcome",
 )
+
+#SR2: using git as a trusted provider instead of relying on username/passwords
 app.register_blueprint(github_bp, url_prefix="/login")
 
-#SR8: 10 requests/minute per IP on login — prevents brute-force/DoS (OWASP A07 and A09)
+#SR8: 10 requests/minute per IP on login — prevents brute-force/DoS 
+# also, crazy that you can just put "10 per minute" and the limitter library gets what im saying!
 limiter.limit("10 per minute")(github_bp.login)
 
 app.teardown_appcontext(database.close_db)
