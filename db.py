@@ -46,7 +46,7 @@ def init_db():
 def get_or_create_user(github_id, username, email):
     db = get_db()
     admin_github_id = os.environ.get("ADMIN_GITHUB_ID", "")
-    # SECURITY: Role assigned server-side based on verified GitHub ID — no client-supplied role claim trusted
+    # SR4: Role assigned server-side based on verified GitHub ID — no client-supplied role claim trusted
     role = "admin" if str(github_id) == str(admin_github_id) and admin_github_id else "user"
 
     user = db.execute("SELECT * FROM users WHERE github_id = ?", (str(github_id),)).fetchone()
@@ -56,7 +56,7 @@ def get_or_create_user(github_id, username, email):
             (str(github_id), username, email, role),
         )
     else:
-        # Update username/email on each login; re-evaluate role if admin ID changes
+        # Update username/email on each login; re-evaluate role if admin ID change, have to do it incase admin changes
         db.execute(
             "UPDATE users SET username = ?, email = ?, role = ? WHERE github_id = ?",
             (username, email, role, str(github_id)),

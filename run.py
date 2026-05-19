@@ -59,7 +59,7 @@ app.teardown_appcontext(database.close_db)
 
 
 # ---------------------------------------------------------------------------
-# User model
+# User model -- falsk login
 # ---------------------------------------------------------------------------
 
 class User(UserMixin):
@@ -81,6 +81,7 @@ def load_user(user_id):
         "SELECT * FROM users WHERE id = ?", (user_id,)
     ).fetchone()
     if row is None:
+        app.logger.warning(f"no user with userId: {user_id}")
         return None
     return User(row["id"], row["github_id"], row["username"], row["email"], row["role"])
 
@@ -93,7 +94,7 @@ def load_user(user_id):
 
 @app.errorhandler(429)
 def ratelimit_handler(e):
-    # SECURITY: Log for monitoring; return safe page without leaking internals (OWASP A09)
+    # SR9: Log for monitoring; return safe page without leaking internals (OWASP A09)
     app.logger.warning("Rate limit exceeded from %s", request.remote_addr)
     return render_template("errors/429.html"), 429
 
@@ -107,13 +108,13 @@ def internal_error(e):
 @oauth_authorized.connect_via(github_bp)
 def github_logged_in(blueprint, token):
     if not token:
-        # SECURITY: Flash error without leaking OAuth/API details to client (OWASP A09)
+        # SR7: Flash error without leaking OAuth/API details to client 
         flash("Login failed: no token received from GitHub. Please try again.", "danger")
         return False
 
     resp = blueprint.session.get("/user")
     if not resp.ok:
-        # SECURITY: Flash error without leaking OAuth/API details to client (OWASP A09)
+        # SR7: Flash error without leaking OAuth/API details to client 
         flash(
             "Login failed: could not retrieve your GitHub profile. "
             "GitHub may be temporarily unavailable — please try again later.",
@@ -214,7 +215,7 @@ def logout():
 @login_required
 def welcome():
     if request.method == "POST":
-        # Reset game state stored in the signed session cookie
+        # SR3: Reset game state stored in the signed session cookie
         session["riddle_index"] = 0
         session["guesses"] = []
         session["score"] = 0
@@ -225,7 +226,7 @@ def welcome():
 @app.route("/game", methods=["GET", "POST"])
 @login_required
 def game():
-    # Guard: redirect to welcome if no game has been started
+    # SR1: redirect to welcome if no game has been started
     if "riddle_index" not in session:
         return redirect(url_for("welcome"))
 
@@ -236,7 +237,7 @@ def game():
     guesses = session.get("guesses", [])
     score = session.get("score", 0)
 
-    # SECURITY: riddle_index validated against riddles list length before use — prevents IndexError 
+    #riddle_index validated against riddles list length before use to prevent IndexError 
     if riddle_index >= len(riddle_list):
         return redirect(url_for("congrats"))
 
@@ -247,7 +248,7 @@ def game():
         except ValueError:
             abort(400)
 
-        # SECURITY: riddle_index validated against riddles list length — prevents IndexError
+        # riddle_index validated against riddles list length — prevents IndexError
         if submitted_index < 0 or submitted_index >= len(riddle_list):
             abort(400)
 
@@ -328,7 +329,7 @@ def congrats():
 @app.route("/admin")
 @login_required
 def admin():
-    # SECURITY: Role checked server-side before every admin operation — no client-supplied role claim trusted
+    # SR4: Role checked server-side before every admin operation — no client-supplied role claim trusted
     if not current_user.is_admin:
         abort(403)
     rows = database.get_highscores()
@@ -338,7 +339,7 @@ def admin():
 @app.route("/admin/highscores/<int:entry_id>/delete", methods=["POST"])
 @login_required
 def admin_delete_highscore(entry_id):
-    # SECURITY: Role checked server-side before every admin operation — no client-supplied role claim trusted
+    # SR4: Role checked server-side before every admin operation — no client-supplied role claim trusted
     if not current_user.is_admin:
         abort(403)
     database.delete_highscore(entry_id)
@@ -348,9 +349,10 @@ def admin_delete_highscore(entry_id):
 @app.route("/admin/highscores/<int:entry_id>/edit", methods=["POST"])
 @login_required
 def admin_edit_highscore(entry_id):
-    # SECURITY: Role checked server-side before every admin operation — no client-supplied role claim trusted
+    # SR4: Role checked server-side before every admin operation — no client-supplied role claim trusted
     if not current_user.is_admin:
         abort(403)
+    # get the score and then make it an int, if value error through a 400
     new_score = request.form.get("score", "")
     try:
         new_score = int(new_score)
@@ -360,7 +362,6 @@ def admin_edit_highscore(entry_id):
         database.update_highscore(entry_id, new_score)
     else: 
         app.logger.error("value needs to be between 0 and 30")
-    # database.update_highscore(entry_id, new_score)
     return redirect(url_for("admin"))
 
 
@@ -372,5 +373,4 @@ if __name__ == "__main__":
     database.init_db()
     ip = "127.0.0.1"
     port = 8000
-    # SECURITY: debug mode controlled via environment variable — not hardcoded to True
     app.run(host=ip, port=port, debug=app.config["DEBUG"])
