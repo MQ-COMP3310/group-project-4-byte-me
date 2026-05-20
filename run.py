@@ -30,13 +30,16 @@ app.config["DEBUG"] = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
 
 app.config["WTF_CSRF_ENABLED"] = True
 
-# SR: CSRF token required on all state-changing POST forms via Flask-WTF CSRFProtect
+# SR11: CSRF token required on all state-changing POST forms via Flask-WTF CSRFProtect
 csrf = CSRFProtect(app)
 
 # SR8: Rate limiting — mitigates DoS on OAuth initiation endpoint (OWASP A02/A07)
 limiter = Limiter(
     app=app,
-    key_func=get_remote_address,
+    # previous line from claude:
+    # "key_func=get_remote_address"
+    # change according to docs: Otherwise all users behind NAT/proxy may share the same limit.
+    key_func= lambda: request.headers.get("X-Forwarded-For", request.remote_addr),
     default_limits=[],   # no global default; limit only the login route
 )
 
@@ -105,7 +108,7 @@ def load_user(user_id):
 
 @app.errorhandler(429)
 def ratelimit_handler(e):
-    # SR9: Log for monitoring; return safe page without leaking internals (OWASP A09)
+    # SR9 & SR8: Log for monitoring; return safe page without leaking internals (OWASP A09)
     app.logger.warning("Rate limit exceeded from %s", request.remote_addr)
     return render_template("errors/429.html"), 429
 
@@ -210,7 +213,7 @@ def highscores():
 # Auth routes
 # ---------------------------------------------------------------------------
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 @login_required
 def logout():
     logout_user()
@@ -369,10 +372,10 @@ def admin_edit_highscore(entry_id):
         new_score = int(new_score)
     except ValueError:
         abort(400)
-    if 0 <= new_score and new_score <= 30:
-        database.update_highscore(entry_id, new_score)
-    else: 
-        app.logger.error("value needs to be between 0 and 30")
+    # SR: Score range enforced server-side — reject out-of-range values with 400 (OWASP A03)
+    if not (0 <= new_score <= 30):
+        abort(400)
+    database.update_highscore(entry_id, new_score)
     return redirect(url_for("admin"))
 
 

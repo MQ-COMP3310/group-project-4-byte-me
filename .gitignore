@@ -177,4 +177,6 @@ cython_debug/
 
 # random stuff 
 CLAUDE.md
-.assignment_screenshots/
+assignment_screenshots/
+.hypothesis
+.pytest_cache

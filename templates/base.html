@@ -54,7 +54,12 @@
             </li>
             {% endif %}
             <li class="nav-item hvr-grow">
-              <a class="nav-link" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout ({{ current_user.username }})</a>
+              <form method="POST" action="{{ url_for('logout') }}" style="display:contents">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="nav-link" style="background:none;border:none;cursor:pointer;">
+                  <i class="fas fa-sign-out-alt"></i> Logout ({{ current_user.username }})
+                </button>
+              </form>
             </li>
           {% else %}
             <li class="nav-item hvr-grow">
