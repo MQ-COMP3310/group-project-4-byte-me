@@ -115,13 +115,16 @@ def csrf_client(app):
 
 @pytest.fixture(autouse=True)
 def clean_db():
-    """Delete all rows after every test so each test starts with an empty DB."""
+    """Delete all rows after every test so each test starts with a clean DB."""
     yield
     conn = sqlite3.connect(_db_path)
     conn.execute("DELETE FROM highscores")
     conn.execute("DELETE FROM users")
+    conn.execute("DELETE FROM riddles")
     conn.commit()
     conn.close()
+    # Re-seed riddles so next test has clean data
+    database.init_db()
 
 
 @pytest.fixture(autouse=True)
@@ -176,3 +179,15 @@ def login(client, user_id):
     resp = client.get(f"/test-login/{user_id}")
     assert resp.status_code == 200, f"Test login failed for user_id={user_id}"
     return client
+
+
+def start_game_session(client):
+    """Set up a valid game session with 10 riddle IDs from the DB."""
+    with flask_app.app_context():
+        riddle_ids = [r["id"] for r in database.get_random_riddles(10)]
+    with client.session_transaction() as sess:
+        sess["riddle_ids"] = riddle_ids
+        sess["riddle_index"] = 0
+        sess["guesses"] = []
+        sess["score"] = 0
+    return riddle_ids

@@ -1,9 +1,11 @@
 {% extends 'base.html' %} {% block content %}
 <div class="container base-content">
     <div class="row">
-        <div class="col">
+        <div class="col text-center">
             <br>
-            <h3 class="text-center">Admin — Highscores</h3>
+            <h3 class="text-center"> Go to manage riddles page </h3>
+            <a href="{{ url_for('admin_riddles') }}" class="btn btn-info text-center ">Manage Riddles</a>
+            <h3 class="text-center">Manage Highscores</h3>
             <table class="table table-striped table-bordered table-hover">
                 <thead class="thead-dark">
                     <tr>
@@ -44,7 +46,6 @@
                     {% endif %}
                 </tbody>
             </table>
-            <a href="{{ url_for('highscores') }}" class="btn btn-secondary">Back to Highscores</a>
         </div>
     </div>
 </div>

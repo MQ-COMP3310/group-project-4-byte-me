@@ -38,7 +38,41 @@ def init_db():
             score       INTEGER NOT NULL,
             created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS riddles (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            question TEXT NOT NULL,
+            answer   TEXT NOT NULL
+        );
     """)
+
+    # Seed riddles from the original text files only if the table is empty
+    count = conn.execute("SELECT COUNT(*) FROM riddles").fetchone()[0]
+    if count == 0:
+        riddles_path = os.path.join(os.path.dirname(DB_PATH) or ".", "-riddles.txt")
+        answers_path = os.path.join(os.path.dirname(DB_PATH) or ".", "-answers.txt")
+        if os.path.exists(riddles_path) and os.path.exists(answers_path):
+            with open(riddles_path, "r") as f:
+                questions = f.read().splitlines()
+            with open(answers_path, "r") as f:
+                answers = f.read().splitlines()
+            seed = list(zip(questions, answers))
+        else:
+            # Fallback seed data if text files are not available
+            seed = [
+                ("It is greater than God and more evil than the devil. The poor have it, the rich need it and if you eat it you'll die. What is it?", "Nothing"),
+                ("What always runs but never walks, often murmurs, never talks, has a bed but never sleeps, has a mouth but never eats?", "River"),
+                ("The more you have of it, the less you see. What is it?", "Darkness"),
+                ("What English word has three consecutive double letters?", "Bookkeeper"),
+                ("What's black when you get it, red when you use it, and white when you're all through with it?", "Charcoal"),
+                ("All about, but cannot be seen, Can be captured, cannot be held, No throat, but can be heard.", "Wind"),
+                ("Until I am measured I am not known, Yet how you miss me when I have flown.", "Time"),
+                ("When set loose, I fly away, Never so cursed as when I go astray.", "Fart"),
+                ("Lighter than what I am made of, More of me is hidden Than is seen.", "Iceberg"),
+                ("Three lives have I. Gentle enough to soothe the skin, Light enough to caress the sky, Hard enough to crack rocks.", "Water"),
+            ]
+        conn.executemany("INSERT INTO riddles (question, answer) VALUES (?, ?)", seed)
+
     conn.commit()
     conn.close()
 
@@ -91,3 +125,46 @@ def update_highscore(entry_id, new_score):
     db = get_db()
     db.execute("UPDATE highscores SET score = ? WHERE id = ?", (new_score, entry_id))
     db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Riddle CRUD — SR13: All queries use parameterised statements
+# ---------------------------------------------------------------------------
+
+
+def get_all_riddles():
+    """Return all riddles (for admin listing)."""
+    db = get_db()
+    return db.execute("SELECT * FROM riddles ORDER BY id").fetchall()
+
+
+def get_riddle_by_id(riddle_id):
+    """Return a single riddle row by ID."""
+    db = get_db()
+    return db.execute("SELECT * FROM riddles WHERE id = ?", (riddle_id,)).fetchone()
+
+
+def get_random_riddles(n=10):
+    """Return n random riddles using ORDER BY RANDOM() LIMIT n."""
+    db = get_db()
+    return db.execute("SELECT * FROM riddles ORDER BY RANDOM() LIMIT ?", (n,)).fetchall()
+
+
+def add_riddle(question, answer):
+    """Insert a new riddle. Used by admin add route."""
+    db = get_db()
+    db.execute("INSERT INTO riddles (question, answer) VALUES (?, ?)", (question, answer))
+    db.commit()
+
+
+def delete_riddle(riddle_id):
+    """Delete a riddle by ID. Used by admin delete route."""
+    db = get_db()
+    db.execute("DELETE FROM riddles WHERE id = ?", (riddle_id,))
+    db.commit()
+
+
+def get_riddle_count():
+    """Return total number of riddles in the table."""
+    db = get_db()
+    return db.execute("SELECT COUNT(*) FROM riddles").fetchone()[0]

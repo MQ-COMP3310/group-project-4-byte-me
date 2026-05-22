@@ -8,7 +8,6 @@ from flask import Flask, render_template, redirect, request, url_for, session, a
 from flask_dance.contrib.github import make_github_blueprint, github
 from flask_dance.consumer import oauth_authorized, oauth_error
 from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from flask_login import (
     LoginManager, UserMixin,
     login_user, logout_user, login_required, current_user,
@@ -54,15 +53,14 @@ github_bp = make_github_blueprint(
     redirect_to="welcome",
 )
 
-#SR2: using git as a trusted provider instead of relying on username/passwords
+#SR2: using github as a trusted provider instead of relying on username/passwords
 app.register_blueprint(github_bp, url_prefix="/login")
+
 
 #SR8: 10 requests/minute per IP on login — prevents brute-force/DoS 
 # also, crazy that you can just put "10 per minute" and the limitter library gets what im saying!
-
 # so used the following function to see what the actual route was that flask was using from the blueprint
 # print("VIEW FUNCTIONS:", app.view_functions.keys())
-
 # now the whole view function is wrapped by the limitter
 app.view_functions["github.login"] = limiter.limit("10 per minute")(
     app.view_functions["github.login"]
@@ -101,7 +99,7 @@ def load_user(user_id):
 
 
 # ---------------------------------------------------------------------------
-# OAuth callback 
+#  error handling pages, should be also adding a 403 and 400 later
 # ---------------------------------------------------------------------------
 
 #All error handling is part of SR7
@@ -119,6 +117,10 @@ def internal_error(e):
     return render_template("errors/500.html"), 500
 
 
+
+# ---------------------------------------------------------------------------
+# OAuth callback 
+# ---------------------------------------------------------------------------
 @oauth_authorized.connect_via(github_bp)
 def github_logged_in(blueprint, token):
     if not token:
@@ -137,9 +139,9 @@ def github_logged_in(blueprint, token):
         return False
 
     user_info = resp.json()
-    github_id = user_info["id"]
     # SR6: Only GitHub ID and public profile stored — minimal data principle (GDPR / privacy)
-
+    # important to note tho that the line above does read the whole response so what else can be extracted from the browser?
+    github_id = user_info["id"]
     username = user_info.get("login", "")
     email = user_info.get("email", "")
 
@@ -176,15 +178,6 @@ def github_oauth_error(blueprint, error, error_description, error_uri):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-def _riddles():
-    with open("data/-riddles.txt", "r") as f:
-        return f.read().splitlines()
-
-
-def _answers():
-    with open("data/-answers.txt", "r") as f:
-        return f.read().splitlines()
 
 
 # ---------------------------------------------------------------------------
@@ -230,6 +223,11 @@ def logout():
 def welcome():
     if request.method == "POST":
         # SR3: Reset game state stored in the signed session cookie
+        riddles = database.get_random_riddles(10)
+        if len(riddles) < 10:
+            flash("Not enough riddles available to start a game.", "danger")
+            return redirect(url_for("welcome"))
+        session["riddle_ids"] = [r["id"] for r in riddles]
         session["riddle_index"] = 0
         session["guesses"] = []
         session["score"] = 0
@@ -241,19 +239,21 @@ def welcome():
 @login_required
 def game():
     # SR1: redirect to welcome if no game has been started
-    if "riddle_index" not in session:
+    riddle_ids = session.get("riddle_ids", [])
+    if "riddle_index" not in session or not riddle_ids:
         return redirect(url_for("welcome"))
-
-    riddle_list = _riddles()
-    answers = _answers()
 
     riddle_index = session.get("riddle_index", 0)
     guesses = session.get("guesses", [])
     score = session.get("score", 0)
 
-    #riddle_index validated against riddles list length before use to prevent IndexError 
-    if riddle_index >= len(riddle_list):
+    # Riddle index validated against session riddle list length
+    if riddle_index >= len(riddle_ids):
         return redirect(url_for("congrats"))
+
+    current_riddle = database.get_riddle_by_id(riddle_ids[riddle_index])
+    if current_riddle is None:
+        abort(400)  # riddle was deleted mid-game
 
     if request.method == "POST":
         submitted_index = request.form.get("riddle_index", "")
@@ -262,19 +262,19 @@ def game():
         except ValueError:
             abort(400)
 
-        # riddle_index validated against riddles list length — prevents IndexError
-        if submitted_index < 0 or submitted_index >= len(riddle_list):
+        # SR4: Form index must match session index — prevents riddle skipping (STRIDE threat #4)
+        if submitted_index != session.get("riddle_index", 0):
             abort(400)
 
         user_response = request.form.get("answer", "").title()
 
-        if answers[submitted_index] == user_response:
+        if current_riddle["answer"] == user_response:
             # Correct — round score decreases by one per wrong guess (max 3)
             round_score = 3 - len(guesses)
             score += round_score
-            riddle_index = submitted_index + 1
+            riddle_index = riddle_index + 1
 
-            if riddle_index >= len(riddle_list):
+            if riddle_index >= len(riddle_ids):
                 # Final riddle answered — persist score and redirect to congrats
                 session["score"] = score
                 session["riddle_index"] = riddle_index
@@ -293,11 +293,15 @@ def game():
             if len(guesses) >= 3:
                 return redirect(url_for("gameover"))
 
+    # Reload current riddle for GET or after wrong answer
+    riddle_index = session.get("riddle_index", 0)
+    current_riddle = database.get_riddle_by_id(riddle_ids[riddle_index])
+
     remaining_attempts = 3 - len(session.get("guesses", []))
     return render_template(
         "game.html",
-        riddle_index=session.get("riddle_index", 0),
-        riddles=riddle_list,
+        riddle_index=riddle_index,
+        riddle_text=current_riddle["question"],
         attempts=session.get("guesses", []),
         remaining_attempts=remaining_attempts,
         score=session.get("score", 0),
@@ -314,6 +318,7 @@ def gameover():
     score = session.get("score", 0)
     database.add_highscore(current_user.id, score)
 
+    session.pop("riddle_ids", None)
     session.pop("riddle_index", None)
     session.pop("guesses", None)
     session.pop("score", None)
@@ -377,6 +382,48 @@ def admin_edit_highscore(entry_id):
         abort(400)
     database.update_highscore(entry_id, new_score)
     return redirect(url_for("admin"))
+
+
+# ---------------------------------------------------------------------------
+# Admin riddle management routes
+# ---------------------------------------------------------------------------
+
+
+@app.route("/admin/riddles")
+@login_required
+def admin_riddles():
+    # SR4: Role checked server-side before every admin operation
+    if not current_user.is_admin:
+        abort(403)
+    riddles = database.get_all_riddles()
+    return render_template("admin_riddles.html", riddles=riddles)
+
+
+@app.route("/admin/riddles/add", methods=["POST"])
+@login_required
+def admin_add_riddle():
+    # SR4: Role checked server-side before every admin operation
+    if not current_user.is_admin:
+        abort(403)
+    question = request.form.get("question", "").strip()
+    answer = request.form.get("answer", "").strip()
+    if not question or not answer:
+        abort(400)
+    database.add_riddle(question, answer)
+    return redirect(url_for("admin_riddles"))
+
+
+@app.route("/admin/riddles/<int:riddle_id>/delete", methods=["POST"])
+@login_required
+def admin_delete_riddle(riddle_id):
+    # SR4: Role checked server-side before every admin operation
+    if not current_user.is_admin:
+        abort(403)
+    if database.get_riddle_count() <= 10:
+        flash("Cannot delete — minimum 10 riddles required for games.", "danger")
+        return redirect(url_for("admin_riddles"))
+    database.delete_riddle(riddle_id)
+    return redirect(url_for("admin_riddles"))
 
 
 # ---------------------------------------------------------------------------

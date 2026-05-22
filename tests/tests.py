@@ -26,7 +26,8 @@ from hypothesis import given, settings, strategies as st
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
-from conftest import _db_path, login, flask_app  # noqa: E402
+from conftest import _db_path, login, flask_app, start_game_session  # noqa: E402
+import db as database
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -184,10 +185,7 @@ class TestCSRF:
     def test_csrf_game_post_blocked(self, csrf_client, regular_user):
         """POST to /game without a CSRF token must be rejected."""
         login(csrf_client, regular_user)
-        with csrf_client.session_transaction() as sess:
-            sess["riddle_index"] = 0
-            sess["guesses"] = []
-            sess["score"] = 0
+        start_game_session(csrf_client)
         resp = csrf_client.post(
             "/game", data={"riddle_index": "0", "answer": "Nothing"}
         )
@@ -259,10 +257,7 @@ class TestFuzzing:
         with flask_app.test_client() as c:
             uid = _insert_user("fuzz_ans", "fuzz_ans_user")
             login(c, uid)
-            with c.session_transaction() as sess:
-                sess["riddle_index"] = 0
-                sess["guesses"] = []
-                sess["score"] = 0
+            start_game_session(c)
             resp = c.post("/game", data={"riddle_index": "0", "answer": answer})
             assert resp.status_code in (200, 302), (
                 f"Unexpected status {resp.status_code} on answer={answer!r}"
@@ -272,21 +267,21 @@ class TestFuzzing:
     @settings(max_examples=50)
     @given(riddle_index=st.integers())
     def test_fuzz_riddle_index(self, riddle_index):
-        """Any riddle_index integer must not cause a 500 (previously caused IndexError)."""
+        """Any riddle_index integer must not cause a 500 (previously caused IndexError).
+        Session index is authoritative — only riddle_index == 0 (matching session) is valid."""
         with flask_app.test_client() as c:
             uid = _insert_user("fuzz_idx", "fuzz_idx_user")
             login(c, uid)
-            with c.session_transaction() as sess:
-                sess["riddle_index"] = 0
-                sess["guesses"] = []
-                sess["score"] = 0
+            start_game_session(c)
             resp = c.post(
                 "/game",
                 data={"riddle_index": str(riddle_index), "answer": "anything"},
             )
-            if 0 <= riddle_index < len(ANSWERS):
-                assert resp.status_code == 200
+            if riddle_index == 0:
+                # Matches session riddle_index=0, so accepted (200 wrong answer or 302 correct)
+                assert resp.status_code in (200, 302)
             else:
+                # Doesn't match session — rejected
                 assert resp.status_code == 400
 
     # Any score value (integer or text) → Expected: not 500
@@ -436,3 +431,286 @@ class TestAdditional:
     #         "App allowed skipping to the last riddle via manipulated riddle_index"
     #     )
 
+
+# =============================================================================
+# 8. Admin Riddle Management Tests
+# =============================================================================
+
+
+class TestAdminRiddles:
+    """Access control and CRUD tests for the admin riddle management routes.
+
+    Validates that:
+    - Unauthenticated users are redirected to the login page (not served admin content)
+    - Authenticated non-admin users receive 403 Forbidden (role enforcement)
+    - Admin users can view, add, and delete riddles
+    - Server-side validation rejects empty fields and enforces the minimum riddle count
+    """
+
+    def test_unauthenticated_admin_riddles(self, client):
+        """Unauthenticated access to /admin/riddles must redirect to login.
+
+        Setup:  No user is logged in — the client has no session cookie.
+        Action: GET /admin/riddles.
+        Expect: 302 redirect to the login page (Flask-Login's login_view = "index").
+                The redirect target must point to the index/login page, not to the
+                admin riddles page itself. This confirms @login_required is active.
+        """
+        resp = client.get("/admin/riddles")
+        assert resp.status_code == 302, (
+            f"Expected 302 redirect to login, got {resp.status_code}"
+        )
+        # Verify the redirect points to the login/index page (Flask-Login sets /?next=...)
+        location = resp.headers.get("Location", "")
+        assert location.startswith("/") and location.split("?")[0] == "/", (
+            f"Expected redirect to login page (/), but got Location: {location}"
+        )
+
+    def test_regular_user_admin_riddles(self, client, regular_user):
+        """Authenticated non-admin user accessing /admin/riddles must get 403.
+
+        Setup:  Log in as a user with role='user' (not admin).
+        Action: GET /admin/riddles.
+        Expect: 403 Forbidden — the server-side is_admin check (SR4) blocks access.
+                This proves that authentication alone is not enough; the admin role
+                is required. A non-admin must never see the riddle management page.
+        """
+        login(client, regular_user)
+        resp = client.get("/admin/riddles")
+        assert resp.status_code == 403, (
+            f"Expected 403 Forbidden for non-admin user, got {resp.status_code}"
+        )
+
+    def test_admin_view_riddles(self, client, admin_user):
+        """Admin user can access the riddle management page and see riddle data.
+
+        Setup:  Log in as a user with role='admin'. The DB is seeded with 10 riddles.
+        Action: GET /admin/riddles.
+        Expect: 200 OK with HTML containing riddle content from the database.
+                This confirms the admin role check passes and the template renders
+                with actual riddle data (not just an empty page).
+        """
+        login(client, admin_user)
+        resp = client.get("/admin/riddles")
+        assert resp.status_code == 200, (
+            f"Expected 200 OK for admin user, got {resp.status_code}"
+        )
+        # Verify the page actually contains riddle data from the seeded DB
+        html = resp.data.decode()
+        assert "Nothing" in html or "River" in html, (
+            "Admin riddles page should display seeded riddle answers but none were found"
+        )
+
+    def test_admin_add_riddle(self, client, admin_user):
+        """Admin can add a new riddle and it persists in the database.
+
+        Setup:  Log in as admin. DB starts with 10 seeded riddles.
+        Action: POST /admin/riddles/add with a valid question and answer.
+        Expect: 302 redirect back to the riddle management page (successful action).
+                The new riddle must exist in the database — verified by querying the
+                riddles table directly. The total count must increase from 10 to 11.
+        """
+        login(client, admin_user)
+
+        # Record initial count
+        conn = sqlite3.connect(_db_path)
+        count_before = conn.execute("SELECT COUNT(*) FROM riddles").fetchone()[0]
+        conn.close()
+
+        resp = client.post(
+            "/admin/riddles/add",
+            data={"question": "Test question?", "answer": "TestAnswer"},
+        )
+        assert resp.status_code == 302, (
+            f"Expected 302 redirect after adding riddle, got {resp.status_code}"
+        )
+
+        # Verify the riddle was actually inserted into the DB
+        conn = sqlite3.connect(_db_path)
+        row = conn.execute(
+            "SELECT * FROM riddles WHERE question = ?", ("Test question?",)
+        ).fetchone()
+        count_after = conn.execute("SELECT COUNT(*) FROM riddles").fetchone()[0]
+        conn.close()
+        assert row is not None, "New riddle was not found in the database after POST"
+        assert count_after == count_before + 1, (
+            f"Riddle count should increase by 1: was {count_before}, now {count_after}"
+        )
+
+    def test_admin_add_riddle_empty_fields(self, client, admin_user):
+        """Server-side validation rejects riddles with empty question or answer.
+
+        Setup:  Log in as admin.
+        Action: POST /admin/riddles/add with (a) empty question, (b) empty answer.
+        Expect: 400 Bad Request in both cases. The server must not accept incomplete
+                riddles — this is server-side validation (not just HTML 'required').
+                Also verify that no new riddle was inserted into the DB.
+        """
+        login(client, admin_user)
+
+        conn = sqlite3.connect(_db_path)
+        count_before = conn.execute("SELECT COUNT(*) FROM riddles").fetchone()[0]
+        conn.close()
+
+        # Empty question
+        resp = client.post("/admin/riddles/add", data={"question": "", "answer": "X"})
+        assert resp.status_code == 400, (
+            f"Expected 400 for empty question, got {resp.status_code}"
+        )
+
+        # Empty answer
+        resp = client.post("/admin/riddles/add", data={"question": "X", "answer": ""})
+        assert resp.status_code == 400, (
+            f"Expected 400 for empty answer, got {resp.status_code}"
+        )
+
+        # Verify nothing was added to the DB
+        conn = sqlite3.connect(_db_path)
+        count_after = conn.execute("SELECT COUNT(*) FROM riddles").fetchone()[0]
+        conn.close()
+        assert count_after == count_before, (
+            f"Riddle count changed from {count_before} to {count_after} despite invalid input"
+        )
+
+    def test_admin_delete_riddle(self, client, admin_user):
+        """Admin can delete a riddle when more than 10 exist in the database.
+
+        Setup:  Log in as admin. Insert an extra (11th) riddle directly into the DB
+                so that the minimum-10 guard does not block deletion.
+        Action: POST /admin/riddles/<id>/delete for the 11th riddle.
+        Expect: 302 redirect back to the management page. The deleted riddle must
+                no longer exist in the database. The total count must decrease by 1.
+        """
+        login(client, admin_user)
+        # Add an extra riddle so we have 11 (deletion guard requires > 10)
+        conn = sqlite3.connect(_db_path)
+        conn.execute(
+            "INSERT INTO riddles (question, answer) VALUES (?, ?)",
+            ("Extra riddle?", "Extra"),
+        )
+        conn.commit()
+        riddle_id = conn.execute(
+            "SELECT id FROM riddles WHERE question = ?", ("Extra riddle?",)
+        ).fetchone()[0]
+        count_before = conn.execute("SELECT COUNT(*) FROM riddles").fetchone()[0]
+        conn.close()
+        assert count_before == 11, f"Expected 11 riddles before delete, got {count_before}"
+
+        resp = client.post(f"/admin/riddles/{riddle_id}/delete")
+        assert resp.status_code == 302, (
+            f"Expected 302 redirect after deleting riddle, got {resp.status_code}"
+        )
+
+        # Verify the riddle is actually gone from the DB
+        conn = sqlite3.connect(_db_path)
+        row = conn.execute("SELECT * FROM riddles WHERE id = ?", (riddle_id,)).fetchone()
+        count_after = conn.execute("SELECT COUNT(*) FROM riddles").fetchone()[0]
+        conn.close()
+        assert row is None, "Riddle still exists in DB after deletion"
+        assert count_after == count_before - 1, (
+            f"Riddle count should decrease by 1: was {count_before}, now {count_after}"
+        )
+
+    def test_admin_delete_riddle_minimum_guard(self, client, admin_user):
+        """Deletion is blocked when exactly 10 riddles remain (minimum for a game).
+
+        Setup:  Log in as admin. The DB has exactly 10 seeded riddles.
+        Action: POST /admin/riddles/<id>/delete for one of the 10 riddles.
+        Expect: 302 redirect (with a flash message) but the riddle must NOT be deleted.
+                The count must remain 10. This guard ensures games can always select
+                10 riddles — without it, a game start would fail.
+        """
+        login(client, admin_user)
+        conn = sqlite3.connect(_db_path)
+        riddle_id = conn.execute("SELECT id FROM riddles LIMIT 1").fetchone()[0]
+        count_before = conn.execute("SELECT COUNT(*) FROM riddles").fetchone()[0]
+        conn.close()
+        assert count_before == 10, f"Expected exactly 10 seeded riddles, got {count_before}"
+
+        resp = client.post(f"/admin/riddles/{riddle_id}/delete")
+        assert resp.status_code == 302, (
+            f"Expected 302 redirect (with flash), got {resp.status_code}"
+        )
+
+        # Verify the riddle was NOT deleted — the guard must have blocked it
+        conn = sqlite3.connect(_db_path)
+        row = conn.execute("SELECT * FROM riddles WHERE id = ?", (riddle_id,)).fetchone()
+        count_after = conn.execute("SELECT COUNT(*) FROM riddles").fetchone()[0]
+        conn.close()
+        assert row is not None, (
+            "Riddle was deleted despite the minimum-10 guard — games would break"
+        )
+        assert count_after == 10, (
+            f"Riddle count changed from 10 to {count_after} — minimum guard failed"
+        )
+
+    def test_non_admin_add_riddle(self, client, regular_user):
+        """Non-admin user cannot add riddles — role enforcement on POST route.
+
+        Setup:  Log in as a regular (non-admin) user.
+        Action: POST /admin/riddles/add with valid riddle data.
+        Expect: 403 Forbidden. The server-side is_admin check (SR4) must reject the
+                request even though the user is authenticated. Also verify that no
+                riddle was actually inserted — the 403 must be a real block, not just
+                a response code with a side effect.
+        """
+        login(client, regular_user)
+
+        conn = sqlite3.connect(_db_path)
+        count_before = conn.execute("SELECT COUNT(*) FROM riddles").fetchone()[0]
+        conn.close()
+
+        resp = client.post(
+            "/admin/riddles/add",
+            data={"question": "Hack?", "answer": "Hack"},
+        )
+        assert resp.status_code == 403, (
+            f"Expected 403 Forbidden for non-admin, got {resp.status_code}"
+        )
+
+        # Verify nothing was inserted — the 403 must be a real block
+        conn = sqlite3.connect(_db_path)
+        count_after = conn.execute("SELECT COUNT(*) FROM riddles").fetchone()[0]
+        conn.close()
+        assert count_after == count_before, (
+            f"Riddle count changed from {count_before} to {count_after} — "
+            "non-admin was able to insert a riddle despite 403"
+        )
+
+    def test_non_admin_delete_riddle(self, client, regular_user):
+        """Non-admin user cannot delete riddles — role enforcement on POST route.
+
+        Setup:  Log in as a regular (non-admin) user. Add an 11th riddle so the
+                minimum guard is not the reason for blocking (we want to test role
+                enforcement specifically, not the count guard).
+        Action: POST /admin/riddles/<id>/delete.
+        Expect: 403 Forbidden. The server-side is_admin check (SR4) must reject the
+                request. Also verify the riddle still exists in the DB after the
+                attempt — confirming the 403 truly blocked the operation.
+        """
+        login(client, regular_user)
+
+        # Add an 11th riddle so the min-10 guard is not a factor
+        conn = sqlite3.connect(_db_path)
+        conn.execute(
+            "INSERT INTO riddles (question, answer) VALUES (?, ?)",
+            ("Target riddle?", "Target"),
+        )
+        conn.commit()
+        riddle_id = conn.execute(
+            "SELECT id FROM riddles WHERE question = ?", ("Target riddle?",)
+        ).fetchone()[0]
+        conn.close()
+
+        resp = client.post(f"/admin/riddles/{riddle_id}/delete")
+        assert resp.status_code == 403, (
+            f"Expected 403 Forbidden for non-admin, got {resp.status_code}"
+        )
+
+        # Verify the riddle was NOT deleted
+        conn = sqlite3.connect(_db_path)
+        row = conn.execute("SELECT * FROM riddles WHERE id = ?", (riddle_id,)).fetchone()
+        conn.close()
+        assert row is not None, (
+            "Riddle was deleted by non-admin user — role enforcement failed"
+        )
