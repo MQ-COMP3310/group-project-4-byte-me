@@ -264,8 +264,8 @@ class TestFuzzing:
                 sess["guesses"] = []
                 sess["score"] = 0
             resp = c.post("/game", data={"riddle_index": "0", "answer": answer})
-            assert resp.status_code != 500, (  # Expected: not 500 (no unhandled exception)
-                f"Server error (500) on answer={answer!r}"
+            assert resp.status_code in (200, 302), (
+                f"Unexpected status {resp.status_code} on answer={answer!r}"
             )
 
     # Any integer riddle_index, including out-of-range → Expected: not 500
@@ -284,9 +284,10 @@ class TestFuzzing:
                 "/game",
                 data={"riddle_index": str(riddle_index), "answer": "anything"},
             )
-            assert resp.status_code != 500, (  # Expected: not 500 (no unhandled exception)
-                f"Server error (500) on riddle_index={riddle_index}"
-            )
+            if 0 <= riddle_index < len(ANSWERS):
+                assert resp.status_code == 200
+            else:
+                assert resp.status_code == 400
 
     # Any score value (integer or text) → Expected: not 500
     @settings(max_examples=50)
@@ -300,9 +301,14 @@ class TestFuzzing:
             resp = c.post(
                 f"/admin/highscores/{entry_id}/edit", data={"score": str(score)}
             )
-            assert resp.status_code != 500, (  # Expected: not 500 (no unhandled exception)
-                f"Server error (500) on score={score!r}"
-            )
+            try:                                                                                                                                               
+                val = int(str(score))
+                if 0 <= val <= 30:
+                    assert resp.status_code == 302
+                else:
+                    assert resp.status_code == 400
+            except ValueError:
+                assert resp.status_code == 400
 
 
 # =============================================================================
