@@ -178,12 +178,12 @@ def github_oauth_error(blueprint, error, error_description, error_uri):
 # ---------------------------------------------------------------------------
 
 def _riddles():
-    with open("data/-riddles.txt", "r") as f:
+    with open("data/-riddles.txt", "r", encoding='UTF-8') as f:
         return f.read().splitlines()
 
 
 def _answers():
-    with open("data/-answers.txt", "r") as f:
+    with open("data/-answers.txt", "r", encoding='UTF-8') as f:
         return f.read().splitlines()
 
 
@@ -233,6 +233,8 @@ def welcome():
         session["riddle_index"] = 0
         session["guesses"] = []
         session["score"] = 0
+        session["hint_used"] = False
+        session.pop("hint", None)
         return redirect(url_for("game"))
     return render_template("welcome.html", username=current_user.username)
 
@@ -251,49 +253,67 @@ def game():
     guesses = session.get("guesses", [])
     score = session.get("score", 0)
 
-    #riddle_index validated against riddles list length before use to prevent IndexError 
     if riddle_index >= len(riddle_list):
         return redirect(url_for("congrats"))
 
     if request.method == "POST":
         submitted_index = request.form.get("riddle_index", "")
+
         try:
             submitted_index = int(submitted_index)
         except ValueError:
             abort(400)
 
-        # riddle_index validated against riddles list length — prevents IndexError
         if submitted_index < 0 or submitted_index >= len(riddle_list):
             abort(400)
+        if submitted_index != session.get("riddle_index", 0):
+            abort(400)
+
+        action = request.form.get("action", "answer")
+
+        if action == "hint":
+            answer = answers[submitted_index].strip()
+
+            if answer:
+                session["hint"] = answer[0]
+                session["hint_used"] = True
+
+            return redirect(url_for("game"))
 
         user_response = request.form.get("answer", "").title()
 
         if answers[submitted_index] == user_response:
-            # Correct — round score decreases by one per wrong guess (max 3)
             round_score = 3 - len(guesses)
+
+            if session.get("hint_used", False):
+                round_score -= 1
+
+            round_score = max(round_score, 0)
             score += round_score
             riddle_index = submitted_index + 1
 
             if riddle_index >= len(riddle_list):
-                # Final riddle answered — persist score and redirect to congrats
                 session["score"] = score
                 session["riddle_index"] = riddle_index
                 database.add_highscore(current_user.id, score)
                 return redirect(url_for("congrats"))
 
-            # Advance to next riddle; clear per-riddle guesses
             session["riddle_index"] = riddle_index
             session["guesses"] = []
             session["score"] = score
+            session["hint_used"] = False
+            session.pop("hint", None)
             guesses = []
+
         else:
-            # Wrong answer — append and check if attempts exhausted
             guesses.append(user_response)
             session["guesses"] = guesses
+
             if len(guesses) >= 3:
                 return redirect(url_for("gameover"))
 
     remaining_attempts = 3 - len(session.get("guesses", []))
+
     return render_template(
         "game.html",
         riddle_index=session.get("riddle_index", 0),
@@ -301,6 +321,8 @@ def game():
         attempts=session.get("guesses", []),
         remaining_attempts=remaining_attempts,
         score=session.get("score", 0),
+        hint=session.get("hint"),
+        hint_used=session.get("hint_used", False),
     )
 
 
@@ -317,7 +339,9 @@ def gameover():
     session.pop("riddle_index", None)
     session.pop("guesses", None)
     session.pop("score", None)
-
+    session.pop("hint_used", None)
+    session.pop("hint", None)
+    
     return render_template("gameover.html", username=current_user.username)
 
 
