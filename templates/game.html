@@ -12,18 +12,35 @@
     </div>
 
     <div class="col-md-12 form-content text-center">
-      <form method="POST" class="form-actual">
-        <!-- SECURITY: CSRF token prevents cross-site request forgery (OWASP A05) -->
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="text" class="form-control" name="answer" id="answer" autofocus>
-        <input type="hidden" name="riddle_index" id="riddle_index" value={{riddle_index}}>
-        <br>
-        <button class="btn btn-dark hvr-round-corners">send</button>
-      </form>
+    <form method="POST" class="form-actual">
+      <!-- SECURITY: CSRF token prevents cross-site request forgery (OWASP A05) -->
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <input type="text" class="form-control" name="answer" id="answer" autofocus>
+
+      <input type="hidden" name="riddle_index" id="riddle_index" value="{{ riddle_index }}">
+
+      <br>
+
+      <button type="submit" name="action" value="answer" class="btn btn-dark hvr-round-corners">
+      send
+      </button>
+
+      {% if not hint_used %}
+      <button type="submit" name="action" value="hint" class="btn btn-secondary hvr-round-corners" formnovalidate>
+      hint
+      </button>
+    {% endif %}
+    </form>
     </div>
 
     <div class="col-md-12">
       <h4>Attempts remaining: {{remaining_attempts}}</h4>
+      {% if hint %}
+        <p class="mt-3">
+        <strong>Hint:</strong> The answer starts with "{{ hint }}".
+        </p>
+      {% endif %}
     </div>
 
   </div>
