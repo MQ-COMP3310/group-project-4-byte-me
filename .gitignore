@@ -172,3 +172,11 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+
+
+# random stuff 
+CLAUDE.md
+assignment_screenshots/
+.hypothesis
+.pytest_cache

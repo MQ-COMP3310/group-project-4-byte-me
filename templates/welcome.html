@@ -14,6 +14,8 @@
             </ul>
             <br>
             <form method="POST">
+                <!-- SECURITY: CSRF token prevents cross-site request forgery (OWASP A05) -->
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <p>Press the button below the start a new game.</p>
                 <button class="btn btn-dark hvr-round-corners">PLAY</button>
             </form>

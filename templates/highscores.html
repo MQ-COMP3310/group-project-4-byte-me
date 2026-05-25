@@ -14,13 +14,18 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for i in range(10) %}
+                        {% for entry in usernames_and_scores %}
                         <tr>
-                            <th scope="row"> {{ i + 1 }}</th>
-                            <td> {{ usernames_and_scores[i][0] }} </td>
-                            <td> {{ usernames_and_scores[i][1] }} </td>
+                            <th scope="row"> {{ loop.index }}</th>
+                            <td> {{ entry[0] }} </td>
+                            <td> {{ entry[1] }} </td>
                         </tr>
                         {% endfor %}
+                        {% if not usernames_and_scores %}
+                        <tr>
+                            <td colspan="3" class="text-center">No scores yet. Be the first to play!</td>
+                        </tr>
+                        {% endif %}
                     </tbody>
                 </table>
             </div>

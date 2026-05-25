@@ -1,0 +1,5 @@
+# Development / testing dependencies (not required for production)
+-r requirements.txt
+pytest>=7.4
+hypothesis>=6.100
+pytest-flask>=1.3

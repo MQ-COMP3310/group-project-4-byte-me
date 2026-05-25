@@ -22,7 +22,7 @@
 
   <!-- Hover.CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/hover.css/2.3.1/css/hover-min.css" />
-  
+
   <!-- Custom styles -->
   <link href="{{ url_for('static', filename='custom/css/styles.css') }}" rel="stylesheet">
 
@@ -47,10 +47,44 @@
           <li class="nav-item hvr-grow">
             <a class="nav-link" href="{{ url_for('highscores') }}"><i class="fas fa-trophy"></i> Highscores</a>
           </li>
+          {% if current_user.is_authenticated %}
+            {% if current_user.is_admin %}
+            <li class="nav-item hvr-grow">
+              <a class="nav-link" href="{{ url_for('admin') }}"><i class="fas fa-shield-alt"></i> Admin</a>
+            </li>
+            {% endif %}
+            <li class="nav-item hvr-grow">
+              <form method="POST" action="{{ url_for('logout') }}" style="display:contents">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="nav-link" style="background:none;border:none;cursor:pointer;">
+                  <i class="fas fa-sign-out-alt"></i> Logout ({{ current_user.username }})
+                </button>
+              </form>
+            </li>
+          {% else %}
+            <li class="nav-item hvr-grow">
+              <a class="nav-link" href="{{ url_for('github.login') }}"><i class="fab fa-github"></i> Login with GitHub</a>
+            </li>
+          {% endif %}
         </ul>
       </div>
     </div>
   </nav>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="container" style="margin-top: 80px;">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
 
   <!-- Page Content -->
   {% block content %} {% endblock %}
