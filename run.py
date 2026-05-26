@@ -99,7 +99,7 @@ def load_user(user_id):
 
 
 # ---------------------------------------------------------------------------
-#  error handling pages, should be also adding a 403 and 400 later
+#  error handling pages, should be also adding a 403 and 400 later, also missing 405 for logout as i have it in my design specs for endpoints
 # ---------------------------------------------------------------------------
 
 #All error handling is part of SR7
@@ -253,7 +253,9 @@ def game():
 
     current_riddle = database.get_riddle_by_id(riddle_ids[riddle_index])
     if current_riddle is None:
-        abort(400)  # riddle was deleted mid-game
+        abort(400)  
+        # riddle was deleted mid-game. 
+        # yo wtf am i being. silly or does this sound a bit how you going??? this should not be a 400??!?!?!? wdym current riddle was deleted the same time that im trying to read it ??? need to try this on a different gitaccount account when one of the boys decides to let me sign in
 
     if request.method == "POST":
         submitted_index = request.form.get("riddle_index", "")
@@ -420,8 +422,7 @@ def admin_delete_riddle(riddle_id):
     if not current_user.is_admin:
         abort(403)
     if database.get_riddle_count() <= 10:
-        flash("Cannot delete — minimum 10 riddles required for games.", "danger")
-        return redirect(url_for("admin_riddles"))
+        abort(400, description="Cannot delete — minimum 10 riddles required for games.")
     database.delete_riddle(riddle_id)
     return redirect(url_for("admin_riddles"))
 
@@ -435,5 +436,5 @@ if __name__ == "__main__":
     ip = "127.0.0.1"
     port = 8000
     app.run(host=ip, port=port, debug=app.config["DEBUG"])
-    print("VIEW FUNCTIONS:", app.view_functions.keys())
+    print("All functions that will be in my threat model:", app.view_functions.keys())
 

@@ -109,6 +109,7 @@ def get_highscores():
     """).fetchall()
 
 
+# SR13: All queries use parameterised statements
 def add_highscore(user_id, score):
     db = get_db()
     db.execute("INSERT INTO highscores (user_id, score) VALUES (?, ?)", (user_id, score))
@@ -128,7 +129,7 @@ def update_highscore(entry_id, new_score):
 
 
 # ---------------------------------------------------------------------------
-# Riddle CRUD — SR13: All queries use parameterised statements
+# Riddle READ/ADD/DELETE  
 # ---------------------------------------------------------------------------
 
 

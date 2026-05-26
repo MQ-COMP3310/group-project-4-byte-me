@@ -5,10 +5,10 @@ Test categories
 1. TestScoreRange      — score stored in DB is always in [0, 30]
 2. TestAdminAccess     — non-admin / unauthenticated users cannot reach admin routes
 3. TestCSRF            — every state-changing POST is blocked without a valid token
-4. TestXSS             — Jinja2 auto-escape prevents raw payloads reaching the browser
-5. TestRateLimiting    — 10 req/min cap on /login/github; other routes unrestricted
-6. TestFuzzing         — hypothesis property tests: no 500s, score invariants
-7. TestAdditional      — session tampering, HTTP method enforcement, SQL injection
+4. TestRateLimiting    — 10 req/min cap on /login/github; other routes unrestricted
+5. TestFuzzing         — hypothesis property tests: status code + score invariants
+6. TestAdditional      — session tampering, HTTP method enforcement, SQL injection
+7. TestAdminRiddles    — CRUD and access control for admin riddle management
 """
 
 import os
@@ -148,16 +148,46 @@ class TestScoreRange:
 class TestAdminAccess:
     """Unauthenticated and non-admin users must not reach any admin route."""
 
-    def test_unauthenticated_admin_dashboard(self, client):
-        """No session cookie → admin panel must redirect to login, not serve 200."""
-        resp = client.get("/admin")
-        assert resp.status_code == 302  # Expected: 302 redirect to login
+    @pytest.mark.parametrize(
+        "method, path",
+        [
+            ("GET", "/admin"),
+            ("GET", "/admin/riddles"),
+            ("POST", "/admin/highscores/1/delete"),
+            ("POST", "/admin/highscores/1/edit"),
+            ("POST", "/admin/riddles/add"),
+            ("POST", "/admin/riddles/1/delete"),
+        ],
+    )
+    def test_unauthenticated_admin_routes_redirect_to_login(self, client, method, path):
+        """No session cookie → every admin route must redirect to the login page."""
+        resp = client.open(path, method=method)
+        assert resp.status_code == 302, (
+            f"Expected 302 redirect for unauthenticated {method} {path}, got {resp.status_code}"
+        )
+        location = resp.headers.get("Location", "")
+        assert location.split("?")[0] == "/", (
+            f"Expected redirect to login page (/), but {method} {path} redirected to: {location}"
+        )
 
-    def test_regular_user_admin_dashboard(self, client, regular_user):
-        """Non-admin authenticated user must be forbidden from the admin panel."""
+    @pytest.mark.parametrize(
+        "method, path",
+        [
+            ("GET", "/admin"),
+            ("GET", "/admin/riddles"),
+            ("POST", "/admin/highscores/1/delete"),
+            ("POST", "/admin/highscores/1/edit"),
+            ("POST", "/admin/riddles/add"),
+            ("POST", "/admin/riddles/1/delete"),
+        ],
+    )
+    def test_non_admin_user_blocked_from_admin_routes(self, client, regular_user, method, path):
+        """Authenticated non-admin user must get 403 on every admin route."""
         login(client, regular_user)
-        resp = client.get("/admin")
-        assert resp.status_code == 403  # Expected: 403 Forbidden (not admin role)
+        resp = client.open(path, method=method)
+        assert resp.status_code == 403, (
+            f"Expected 403 Forbidden for non-admin {method} {path}, got {resp.status_code}"
+        )
 
     def test_admin_user_dashboard(self, client, admin_user):
         """Admin-role user must be granted access to the admin panel."""
@@ -230,7 +260,7 @@ class TestRateLimiting:
             client.get("/login/github").status_code
             for _ in range(12)
         ]
-        assert all(c == 302 for c in codes[:10]) #anything before should be 302 redirect to /welcome
+        assert all(c == 302 for c in codes[:10]) #anything before should be 302 redirect to GitHub OAuth
         assert all(c == 429 for c in codes[10:]) #anything after 10 per minute should return 429
 
 
@@ -244,16 +274,16 @@ class TestFuzzing:
     Property-based tests using Hypothesis.
 
     Invariants:
-      A) The app never returns HTTP 500 for any input (Flask is memory-safe,
-         but unhandled exceptions still produce 500s).
-      B) Scores outside [0, 30] are always rejected with 400.
+      A) Game answers yield 200 (wrong) or 302 (correct/redirect) for any input.
+      B) Riddle index must match session state — mismatches are rejected with 400.
+      C) Admin score edits: integers in [0, 30] → 302; everything else → 400.
     """
 
     # Any answer string, including unicode/special chars → Expected: not 500
     @settings(max_examples=50)
     @given(answer=st.text(max_size=500))
     def test_fuzz_game_answer(self, answer):
-        """Any answer string must not cause a 500."""
+        """Any answer string must yield 200 (wrong) or 302 (correct/redirect)."""
         with flask_app.test_client() as c:
             uid = _insert_user("fuzz_ans", "fuzz_ans_user")
             login(c, uid)
@@ -267,8 +297,8 @@ class TestFuzzing:
     @settings(max_examples=50)
     @given(riddle_index=st.integers())
     def test_fuzz_riddle_index(self, riddle_index):
-        """Any riddle_index integer must not cause a 500 (previously caused IndexError).
-        Session index is authoritative — only riddle_index == 0 (matching session) is valid."""
+        """Session index is authoritative: only riddle_index matching session (0) yields
+        200/302; all others are rejected with 400."""
         with flask_app.test_client() as c:
             uid = _insert_user("fuzz_idx", "fuzz_idx_user")
             login(c, uid)
@@ -288,7 +318,7 @@ class TestFuzzing:
     @settings(max_examples=50)
     @given(score=st.one_of(st.integers(), st.text(max_size=50)))
     def test_fuzz_admin_edit_score(self, score):
-        """Any score value sent to the admin edit endpoint must not cause a 500."""
+        """Admin edit score: valid integers in [0,30] yield 302; all others yield 400."""
         with flask_app.test_client() as c:
             uid = _insert_user("fuzz_sc_admin", "fuzz_sc_admin", role="admin")
             entry_id = _insert_highscore(uid)
@@ -307,7 +337,7 @@ class TestFuzzing:
 
 
 # =============================================================================
-# 7. Additional Security Tests
+# 7. Additional Security Tests / do i want to keep these tests? they seem excessive for this assignment!
 # =============================================================================
 
 
@@ -447,40 +477,6 @@ class TestAdminRiddles:
     - Server-side validation rejects empty fields and enforces the minimum riddle count
     """
 
-    def test_unauthenticated_admin_riddles(self, client):
-        """Unauthenticated access to /admin/riddles must redirect to login.
-
-        Setup:  No user is logged in — the client has no session cookie.
-        Action: GET /admin/riddles.
-        Expect: 302 redirect to the login page (Flask-Login's login_view = "index").
-                The redirect target must point to the index/login page, not to the
-                admin riddles page itself. This confirms @login_required is active.
-        """
-        resp = client.get("/admin/riddles")
-        assert resp.status_code == 302, (
-            f"Expected 302 redirect to login, got {resp.status_code}"
-        )
-        # Verify the redirect points to the login/index page (Flask-Login sets /?next=...)
-        location = resp.headers.get("Location", "")
-        assert location.startswith("/") and location.split("?")[0] == "/", (
-            f"Expected redirect to login page (/), but got Location: {location}"
-        )
-
-    def test_regular_user_admin_riddles(self, client, regular_user):
-        """Authenticated non-admin user accessing /admin/riddles must get 403.
-
-        Setup:  Log in as a user with role='user' (not admin).
-        Action: GET /admin/riddles.
-        Expect: 403 Forbidden — the server-side is_admin check (SR4) blocks access.
-                This proves that authentication alone is not enough; the admin role
-                is required. A non-admin must never see the riddle management page.
-        """
-        login(client, regular_user)
-        resp = client.get("/admin/riddles")
-        assert resp.status_code == 403, (
-            f"Expected 403 Forbidden for non-admin user, got {resp.status_code}"
-        )
-
     def test_admin_view_riddles(self, client, admin_user):
         """Admin user can access the riddle management page and see riddle data.
 
@@ -612,13 +608,13 @@ class TestAdminRiddles:
         )
 
     def test_admin_delete_riddle_minimum_guard(self, client, admin_user):
-        """Deletion is blocked when exactly 10 riddles remain (minimum for a game).
+        """Deletion is blocked with 400 when exactly 10 riddles remain (minimum for a game).
 
         Setup:  Log in as admin. The DB has exactly 10 seeded riddles.
         Action: POST /admin/riddles/<id>/delete for one of the 10 riddles.
-        Expect: 302 redirect (with a flash message) but the riddle must NOT be deleted.
-                The count must remain 10. This guard ensures games can always select
-                10 riddles — without it, a game start would fail.
+        Expect: 400 Bad Request. The riddle must NOT be deleted and the count must
+                remain 10. This guard ensures games can always select 10 riddles —
+                without it, a game start would fail.
         """
         login(client, admin_user)
         conn = sqlite3.connect(_db_path)
@@ -628,8 +624,8 @@ class TestAdminRiddles:
         assert count_before == 10, f"Expected exactly 10 seeded riddles, got {count_before}"
 
         resp = client.post(f"/admin/riddles/{riddle_id}/delete")
-        assert resp.status_code == 302, (
-            f"Expected 302 redirect (with flash), got {resp.status_code}"
+        assert resp.status_code == 400, (
+            f"Expected 400 Bad Request, got {resp.status_code}"
         )
 
         # Verify the riddle was NOT deleted — the guard must have blocked it
@@ -713,4 +709,24 @@ class TestAdminRiddles:
         conn.close()
         assert row is not None, (
             "Riddle was deleted by non-admin user — role enforcement failed"
+        )
+
+    def test_non_admin_view_riddles(self, client, regular_user):
+        """regular user can NOT access the riddle management page and see riddle data.
+
+        Setup:  Log in as a user with role='user'. The DB is seeded with 10 riddles.
+        Action: GET /admin/riddles.
+        Expect: 403 FORBIDDEN with HTML containing NO riddle content from the database.
+                This confirms the admin role check passes and the template renders
+                with actual riddle data (not just an empty page).
+        """
+        login(client, regular_user)
+        resp = client.get("/admin/riddles")
+        assert resp.status_code == 403, (
+            f"Expected 403 OK for regular user, got {resp.status_code}"
+        )
+        # Verify the page actually contains riddle data from the seeded DB
+        html = resp.data.decode()
+        assert "Nothing" not in html or "River" not in html, (
+            "regular user riddles page should NOT display seeded riddle answers"
         )
