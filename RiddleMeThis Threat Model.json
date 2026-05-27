@@ -35,8 +35,8 @@
             },
             "visible": true,
             "shape": "trust-boundary-box",
-            "id": "467d9e97-fcac-4469-babd-2b3ea12a9b59",
             "zIndex": -1,
+            "id": "467d9e97-fcac-4469-babd-2b3ea12a9b59",
             "data": {
               "type": "tm.BoundaryBox",
               "name": "Trust Boundary",
@@ -64,8 +64,8 @@
             },
             "visible": true,
             "shape": "trust-boundary-box",
-            "id": "e8c5818c-9f4d-40bf-a685-8b147e7f66c4",
             "zIndex": -1,
+            "id": "e8c5818c-9f4d-40bf-a685-8b147e7f66c4",
             "data": {
               "type": "tm.BoundaryBox",
               "name": "Trust Boundary",
@@ -203,19 +203,7 @@
               "threats": [],
               "providesAuthentication": false
             },
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "No identity verification",
-                "type": "Spoofing",
-                "description": "Any player can choose any username. A user can impersonate another player by entering the same username.",
-                "mitigation": "Add authentication/session management, or define usernames as non-unique display names only.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "abeba7f7-b440-4b81-a301-05a7d5a94f35"
-              }
-            ]
+            "threats": []
           },
           {
             "position": {
@@ -339,41 +327,7 @@
               "isWebApplication": true,
               "privilegeLevel": "executionContext =Limited"
             },
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "High",
-                "title": "Username path traversal into local files",
-                "type": "Tampering",
-                "description": "The username is concatenated into file paths such as data/user-<username>-score.txt and data/user-<username>-guesses.txt. Crafted values could create, overwrite, or access unintended files.",
-                "mitigation": "Whitelist usernames with ^[A-Za-z0-9_-]{1,30}$, reject dots/path separators, and verify resolved paths remain inside the data directory.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "bf1b13b9-a14a-46d6-a51e-df0077d96f37"
-              },
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "No identity verification",
-                "type": "Spoofing",
-                "description": "Any player can choose any username. A user can impersonate another player by entering the same username.",
-                "mitigation": "Add authentication/session management, or define usernames as non-unique display names only.",
-                "modelType": "STRIDE",
-                "number": 2,
-                "threatId": "cd25db48-2c5d-4962-8743-addbcfa27f46"
-              },
-              {
-                "status": "Open",
-                "severity": "Low",
-                "title": "File creation denial of service",
-                "type": "Denial of service",
-                "description": "Submitting many different or very long usernames can create many files or cause path/IO errors in the data folder.",
-                "mitigation": "Limit username length and characters, rate-limit submissions where applicable, and handle file IO errors gracefully.",
-                "modelType": "STRIDE",
-                "number": 3,
-                "threatId": "7f342269-475f-4c7c-87a3-7c545fb85e5a"
-              }
-            ]
+            "threats": []
           },
           {
             "position": {
@@ -497,41 +451,7 @@
               "isWebApplication": false,
               "privilegeLevel": "executionContext =Limited"
             },
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "High",
-                "title": "Username path traversal into local files",
-                "type": "Tampering",
-                "description": "The username is concatenated into file paths such as data/user-<username>-score.txt and data/user-<username>-guesses.txt. Crafted values could create, overwrite, or access unintended files.",
-                "mitigation": "Whitelist usernames with ^[A-Za-z0-9_-]{1,30}$, reject dots/path separators, and verify resolved paths remain inside the data directory.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "6f1836d8-886b-45ad-b8f6-09b8eb97ccfe"
-              },
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "Plain text score manipulation",
-                "type": "Tampering",
-                "description": "Scores are stored in local text files with predictable names. A local attacker or path-traversal attempt could modify scores or append fake results.",
-                "mitigation": "Use a database or structured store with server-side validation, validate ownership, and avoid user input directly in filenames.",
-                "modelType": "STRIDE",
-                "number": 2,
-                "threatId": "2b7bb3e3-a63d-4150-b4f0-c7c23d8f7849"
-              },
-              {
-                "status": "Open",
-                "severity": "Low",
-                "title": "File creation denial of service",
-                "type": "Denial of service",
-                "description": "Submitting many different or very long usernames can create many files or cause path/IO errors in the data folder.",
-                "mitigation": "Limit username length and characters, rate-limit submissions where applicable, and handle file IO errors gracefully.",
-                "modelType": "STRIDE",
-                "number": 3,
-                "threatId": "bc074805-4ded-4f05-9d19-c704704feec0"
-              }
-            ]
+            "threats": []
           },
           {
             "position": {
@@ -655,30 +575,7 @@
               "isWebApplication": true,
               "privilegeLevel": "executionContext =Limited"
             },
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "High",
-                "title": "Tampering with riddle_index",
-                "type": "Tampering",
-                "description": "The riddle_index comes from the POST form. A user can modify the request to skip riddles, replay riddles, or access an out-of-range index.",
-                "mitigation": "Store game progress server-side or in a signed session, validate riddle_index is in range, and ignore client-provided progress where possible.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "7657ff4b-0787-462b-8c1d-6cd894c44b93"
-              },
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "Stored or reflected script content in usernames/guesses",
-                "type": "Elevation of privilege",
-                "description": "User-controlled usernames and answers may be written to text files or rendered in templates. If escaping is disabled or bypassed, malicious HTML/JavaScript could execute in the browser.",
-                "mitigation": "Keep Jinja autoescaping enabled, never mark user input as safe, validate username characters, and escape displayed guesses/highscore entries.",
-                "modelType": "STRIDE",
-                "number": 2,
-                "threatId": "77415ead-1485-4ede-b1f7-b7f209671420"
-              }
-            ]
+            "threats": []
           },
           {
             "position": {
@@ -802,30 +699,7 @@
               "isWebApplication": false,
               "privilegeLevel": ""
             },
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "High",
-                "title": "Tampering with riddle_index",
-                "type": "Tampering",
-                "description": "The riddle_index comes from the POST form. A user can modify the request to skip riddles, replay riddles, or access an out-of-range index.",
-                "mitigation": "Store game progress server-side or in a signed session, validate riddle_index is in range, and ignore client-provided progress where possible.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "aa4a7b17-61e0-43b8-a1e9-73e1c5df5370"
-              },
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "Global username state confusion",
-                "type": "Tampering",
-                "description": "Attempt counting relies on a global username rather than consistently using the route parameter. Multiple users or requests can cause incorrect attempt counts or score behaviour.",
-                "mitigation": "Remove global username state and pass username explicitly into functions. Use per-session state where needed.",
-                "modelType": "STRIDE",
-                "number": 2,
-                "threatId": "7d39baab-6309-46b6-8da6-abddf1205a10"
-              }
-            ]
+            "threats": []
           },
           {
             "position": {
@@ -949,30 +823,7 @@
               "isWebApplication": false,
               "privilegeLevel": "executionContext =Limited"
             },
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "Plain text score manipulation",
-                "type": "Tampering",
-                "description": "Scores are stored in local text files with predictable names. A local attacker or path-traversal attempt could modify scores or append fake results.",
-                "mitigation": "Use a database or structured store with server-side validation, validate ownership, and avoid user input directly in filenames.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "d06a6814-3dea-42c7-abe3-40484e57908a"
-              },
-              {
-                "status": "Open",
-                "severity": "Low",
-                "title": "No audit trail for score changes",
-                "type": "Repudiation",
-                "description": "The application does not log key security events such as username creation, failed attempts, riddle completion, or highscore updates.",
-                "mitigation": "Add minimal server-side logging for important events without logging sensitive payloads.",
-                "modelType": "STRIDE",
-                "number": 2,
-                "threatId": "9ab5b35b-03ac-4117-9550-3ddb70c4f08a"
-              }
-            ]
+            "threats": []
           },
           {
             "position": {
@@ -1096,30 +947,7 @@
               "isWebApplication": true,
               "privilegeLevel": "executionContext =Limited"
             },
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "High",
-                "title": "Answer disclosure to template/browser",
-                "type": "Information disclosure",
-                "description": "The game process reads the answer file and passes the answers list into the template context. If rendered or exposed through debugging, players can see the answers.",
-                "mitigation": "Do not pass the full answers list to templates. Keep answer comparison server-side only and disable debug mode outside development.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "539978e4-b9cf-428e-b9ec-c7522f7806ce"
-              },
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "Stored or reflected script content in usernames/guesses",
-                "type": "Elevation of privilege",
-                "description": "User-controlled usernames and answers may be written to text files or rendered in templates. If escaping is disabled or bypassed, malicious HTML/JavaScript could execute in the browser.",
-                "mitigation": "Keep Jinja autoescaping enabled, never mark user input as safe, validate username characters, and escape displayed guesses/highscore entries.",
-                "modelType": "STRIDE",
-                "number": 2,
-                "threatId": "510cc906-d814-4582-9e51-332488706c00"
-              }
-            ]
+            "threats": []
           },
           {
             "shape": "flow",
@@ -1307,19 +1135,7 @@
               "storesCredentials": false,
               "storesInventory": false
             },
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "Stored or reflected script content in usernames/guesses",
-                "type": "Elevation of privilege",
-                "description": "User-controlled usernames and answers may be written to text files or rendered in templates. If escaping is disabled or bypassed, malicious HTML/JavaScript could execute in the browser.",
-                "mitigation": "Keep Jinja autoescaping enabled, never mark user input as safe, validate username characters, and escape displayed guesses/highscore entries.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "f48a1091-c898-403d-bcff-bc3a7b7c6361"
-              }
-            ]
+            "threats": []
           },
           {
             "shape": "flow",
@@ -1343,7 +1159,7 @@
             "connector": "smooth",
             "data": {
               "type": "tm.Flow",
-              "name": "Submit username",
+              "name": "Submit Username",
               "description": "",
               "outOfScope": false,
               "isTrustBoundary": false,
@@ -1359,83 +1175,11 @@
               ]
             },
             "labels": [
-              {
-                "attrs": {
-                  "label": {
-                    "text": "Submit username",
-                    "fontSize": 12,
-                    "fontFamily": "Arial, helvetica, sans-serif",
-                    "fill": "#000000",
-                    "textAnchor": "middle",
-                    "textVerticalAnchor": "middle"
-                  },
-                  "body": {
-                    "ref": "label",
-                    "fill": "#ffffff",
-                    "stroke": "#ffffff",
-                    "strokeWidth": 2,
-                    "refWidth": "120%",
-                    "refHeight": "120%",
-                    "refX": "-10%",
-                    "refY": "-10%"
-                  },
-                  "text": {
-                    "text": "Submit username",
-                    "font-weight": "400",
-                    "font-size": "small"
-                  },
-                  "labelText": {
-                    "text": "Submit username",
-                    "fontSize": 12,
-                    "fill": "#000000"
-                  },
-                  "labelBody": {
-                    "ref": "labelText",
-                    "fill": "#ffffff",
-                    "stroke": "#ffffff",
-                    "strokeWidth": 2
-                  }
-                },
-                "position": 0.5165864957080529
-              }
+              "Submit Username"
             ],
             "id": "2097e9fb-ef7b-4b11-9e35-f027c0ed9f02",
             "visible": true,
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "High",
-                "title": "Username path traversal into local files",
-                "type": "Tampering",
-                "description": "The username is concatenated into file paths such as data/user-<username>-score.txt and data/user-<username>-guesses.txt. Crafted values could create, overwrite, or access unintended files.",
-                "mitigation": "Whitelist usernames with ^[A-Za-z0-9_-]{1,30}$, reject dots/path separators, and verify resolved paths remain inside the data directory.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "f36d4203-c2f9-4782-8530-01d915c1f61a"
-              },
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "No identity verification",
-                "type": "Spoofing",
-                "description": "Any player can choose any username. A user can impersonate another player by entering the same username.",
-                "mitigation": "Add authentication/session management, or define usernames as non-unique display names only.",
-                "modelType": "STRIDE",
-                "number": 2,
-                "threatId": "fb27035b-efea-4be2-9c77-7894b72d520e"
-              },
-              {
-                "status": "Open",
-                "severity": "Low",
-                "title": "File creation denial of service",
-                "type": "Denial of service",
-                "description": "Submitting many different or very long usernames can create many files or cause path/IO errors in the data folder.",
-                "mitigation": "Limit username length and characters, rate-limit submissions where applicable, and handle file IO errors gracefully.",
-                "modelType": "STRIDE",
-                "number": 3,
-                "threatId": "1c9b998a-7477-4fc9-a587-948f01bf4a75"
-              }
-            ],
+            "threats": [],
             "source": {
               "cell": "236cd1d0-57ce-473d-a052-36c40db77cb1"
             },
@@ -1445,6 +1189,10 @@
             "vertices": [
               {
                 "x": 330,
+                "y": 80
+              },
+              {
+                "x": 380,
                 "y": 80
               }
             ]
@@ -1459,6 +1207,9 @@
                   "width": 12,
                   "height": 8
                 },
+                "sourceMarker": {
+                  "name": ""
+                },
                 "strokeDasharray": null
               }
             },
@@ -1468,7 +1219,7 @@
             "connector": "smooth",
             "data": {
               "type": "tm.Flow",
-              "name": "Redirect to user route",
+              "name": "Redirect to User Route",
               "description": "",
               "outOfScope": false,
               "isTrustBoundary": false,
@@ -1482,45 +1233,7 @@
               "trustBoundaryIds": []
             },
             "labels": [
-              {
-                "attrs": {
-                  "label": {
-                    "text": "Redirect to user route",
-                    "fontSize": 12,
-                    "fontFamily": "Arial, helvetica, sans-serif",
-                    "fill": "#000000",
-                    "textAnchor": "middle",
-                    "textVerticalAnchor": "middle"
-                  },
-                  "body": {
-                    "ref": "label",
-                    "fill": "#ffffff",
-                    "stroke": "#ffffff",
-                    "strokeWidth": 2,
-                    "refWidth": "120%",
-                    "refHeight": "120%",
-                    "refX": "-10%",
-                    "refY": "-10%"
-                  },
-                  "text": {
-                    "text": "Redirect to user route",
-                    "font-weight": "400",
-                    "font-size": "small"
-                  },
-                  "labelText": {
-                    "text": "Redirect to user route",
-                    "fontSize": 12,
-                    "fill": "#000000"
-                  },
-                  "labelBody": {
-                    "ref": "labelText",
-                    "fill": "#ffffff",
-                    "stroke": "#ffffff",
-                    "strokeWidth": 2
-                  }
-                },
-                "position": 0.5
-              }
+              "Redirect to User Route"
             ],
             "id": "0c7c2a22-7e0e-4caa-9207-314f7d514996",
             "visible": true,
@@ -1575,41 +1288,7 @@
             ],
             "id": "79e0cac4-d080-4122-86fd-01b706d75707",
             "visible": true,
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "High",
-                "title": "Username path traversal into local files",
-                "type": "Tampering",
-                "description": "The username is concatenated into file paths such as data/user-<username>-score.txt and data/user-<username>-guesses.txt. Crafted values could create, overwrite, or access unintended files.",
-                "mitigation": "Whitelist usernames with ^[A-Za-z0-9_-]{1,30}$, reject dots/path separators, and verify resolved paths remain inside the data directory.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "3eed2992-3c11-42db-8f15-f768b85ed38e"
-              },
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "Plain text score manipulation",
-                "type": "Tampering",
-                "description": "Scores are stored in local text files with predictable names. A local attacker or path-traversal attempt could modify scores or append fake results.",
-                "mitigation": "Use a database or structured store with server-side validation, validate ownership, and avoid user input directly in filenames.",
-                "modelType": "STRIDE",
-                "number": 2,
-                "threatId": "851ee8d2-8647-451b-add2-84ae2c4c09c9"
-              },
-              {
-                "status": "Open",
-                "severity": "Low",
-                "title": "File creation denial of service",
-                "type": "Denial of service",
-                "description": "Submitting many different or very long usernames can create many files or cause path/IO errors in the data folder.",
-                "mitigation": "Limit username length and characters, rate-limit submissions where applicable, and handle file IO errors gracefully.",
-                "modelType": "STRIDE",
-                "number": 3,
-                "threatId": "6862fde2-e10c-464f-8fd4-c17bfc233398"
-              }
-            ],
+            "threats": [],
             "source": {
               "cell": "7bb61c56-59be-42a7-a2a2-a078ced7230a"
             },
@@ -1654,7 +1333,7 @@
             "connector": "smooth",
             "data": {
               "type": "tm.Flow",
-              "name": "Submit answer + riddle_index",
+              "name": "Submitted Answer and riddle_index",
               "description": "",
               "outOfScope": false,
               "isTrustBoundary": false,
@@ -1670,72 +1349,11 @@
               ]
             },
             "labels": [
-              {
-                "attrs": {
-                  "label": {
-                    "text": "Submit answer + riddle_index",
-                    "fontSize": 12,
-                    "fontFamily": "Arial, helvetica, sans-serif",
-                    "fill": "#000000",
-                    "textAnchor": "middle",
-                    "textVerticalAnchor": "middle"
-                  },
-                  "body": {
-                    "ref": "label",
-                    "fill": "#ffffff",
-                    "stroke": "#ffffff",
-                    "strokeWidth": 2,
-                    "refWidth": "120%",
-                    "refHeight": "120%",
-                    "refX": "-10%",
-                    "refY": "-10%"
-                  },
-                  "text": {
-                    "text": "Submit answer + riddle_index",
-                    "font-weight": "400",
-                    "font-size": "small"
-                  },
-                  "labelText": {
-                    "text": "Submit answer + riddle_index",
-                    "fontSize": 12,
-                    "fill": "#000000"
-                  },
-                  "labelBody": {
-                    "ref": "labelText",
-                    "fill": "#ffffff",
-                    "stroke": "#ffffff",
-                    "strokeWidth": 2
-                  }
-                },
-                "position": 0.5
-              }
+              "Submitted Answer and riddle_index"
             ],
             "id": "dda7563c-7ddd-4b4c-9184-5437a3e6ee26",
             "visible": true,
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "High",
-                "title": "Tampering with riddle_index",
-                "type": "Tampering",
-                "description": "The riddle_index comes from the POST form. A user can modify the request to skip riddles, replay riddles, or access an out-of-range index.",
-                "mitigation": "Store game progress server-side or in a signed session, validate riddle_index is in range, and ignore client-provided progress where possible.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "c2c59c5e-a571-485f-b575-766473a453f8"
-              },
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "Stored or reflected script content in usernames/guesses",
-                "type": "Elevation of privilege",
-                "description": "User-controlled usernames and answers may be written to text files or rendered in templates. If escaping is disabled or bypassed, malicious HTML/JavaScript could execute in the browser.",
-                "mitigation": "Keep Jinja autoescaping enabled, never mark user input as safe, validate username characters, and escape displayed guesses/highscore entries.",
-                "modelType": "STRIDE",
-                "number": 2,
-                "threatId": "dab2e097-59d1-4dc1-9e79-4d8aeef1b50f"
-              }
-            ],
+            "threats": [],
             "source": {
               "cell": "236cd1d0-57ce-473d-a052-36c40db77cb1"
             },
@@ -1771,7 +1389,7 @@
             "connector": "smooth",
             "data": {
               "type": "tm.Flow",
-              "name": "Parsed answer and index",
+              "name": "Parsed Answer and Index",
               "description": "",
               "outOfScope": false,
               "isTrustBoundary": false,
@@ -1785,61 +1403,11 @@
               "trustBoundaryIds": []
             },
             "labels": [
-              {
-                "attrs": {
-                  "label": {
-                    "text": "Parsed answer and index",
-                    "fontSize": 12,
-                    "fontFamily": "Arial, helvetica, sans-serif",
-                    "fill": "#000000",
-                    "textAnchor": "middle",
-                    "textVerticalAnchor": "middle"
-                  },
-                  "body": {
-                    "ref": "label",
-                    "fill": "#ffffff",
-                    "stroke": "#ffffff",
-                    "strokeWidth": 2,
-                    "refWidth": "120%",
-                    "refHeight": "120%",
-                    "refX": "-10%",
-                    "refY": "-10%"
-                  },
-                  "text": {
-                    "text": "Parsed answer and index",
-                    "font-weight": "400",
-                    "font-size": "small"
-                  },
-                  "labelText": {
-                    "text": "Parsed answer and index",
-                    "fontSize": 12,
-                    "fill": "#000000"
-                  },
-                  "labelBody": {
-                    "ref": "labelText",
-                    "fill": "#ffffff",
-                    "stroke": "#ffffff",
-                    "strokeWidth": 2
-                  }
-                },
-                "position": 0.5182192494733419
-              }
+              "Parsed Answer and Index"
             ],
             "id": "d7489f9f-703c-488d-a2b3-a805c10ee374",
             "visible": true,
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "High",
-                "title": "Tampering with riddle_index",
-                "type": "Tampering",
-                "description": "The riddle_index comes from the POST form. A user can modify the request to skip riddles, replay riddles, or access an out-of-range index.",
-                "mitigation": "Store game progress server-side or in a signed session, validate riddle_index is in range, and ignore client-provided progress where possible.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "6be9f0bb-9dd6-407a-9ee7-9b07b832d915"
-              }
-            ],
+            "threats": [],
             "source": {
               "cell": "05308598-2145-4da8-9dc6-b7f90499b4b6"
             },
@@ -1847,6 +1415,10 @@
               "cell": "136ef51e-a199-433d-84ce-8b4d77670193"
             },
             "vertices": [
+              {
+                "x": 230,
+                "y": 310
+              },
               {
                 "x": 310,
                 "y": 310
@@ -1895,41 +1467,7 @@
             ],
             "id": "c23548c8-2f8c-437b-9bc5-274dd3b6c571",
             "visible": true,
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "High",
-                "title": "Username path traversal into local files",
-                "type": "Tampering",
-                "description": "The username is concatenated into file paths such as data/user-<username>-score.txt and data/user-<username>-guesses.txt. Crafted values could create, overwrite, or access unintended files.",
-                "mitigation": "Whitelist usernames with ^[A-Za-z0-9_-]{1,30}$, reject dots/path separators, and verify resolved paths remain inside the data directory.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "2296357d-415a-4e92-a021-acc07ed9a75a"
-              },
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "Stored or reflected script content in usernames/guesses",
-                "type": "Elevation of privilege",
-                "description": "User-controlled usernames and answers may be written to text files or rendered in templates. If escaping is disabled or bypassed, malicious HTML/JavaScript could execute in the browser.",
-                "mitigation": "Keep Jinja autoescaping enabled, never mark user input as safe, validate username characters, and escape displayed guesses/highscore entries.",
-                "modelType": "STRIDE",
-                "number": 2,
-                "threatId": "b2bafb15-4f41-4122-aaa5-2c69694aa5ce"
-              },
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "Global username state confusion",
-                "type": "Tampering",
-                "description": "Attempt counting relies on a global username rather than consistently using the route parameter. Multiple users or requests can cause incorrect attempt counts or score behaviour.",
-                "mitigation": "Remove global username state and pass username explicitly into functions. Use per-session state where needed.",
-                "modelType": "STRIDE",
-                "number": 3,
-                "threatId": "e09ff05e-a1fb-4b5c-803f-e589dedf045a"
-              }
-            ],
+            "threats": [],
             "source": {
               "cell": "136ef51e-a199-433d-84ce-8b4d77670193"
             },
@@ -1974,7 +1512,7 @@
             "connector": "smooth",
             "data": {
               "type": "tm.Flow",
-              "name": "Game state decision",
+              "name": "Game State Decision",
               "description": "",
               "outOfScope": false,
               "isTrustBoundary": false,
@@ -1988,61 +1526,11 @@
               "trustBoundaryIds": []
             },
             "labels": [
-              {
-                "attrs": {
-                  "label": {
-                    "text": "Game state decision",
-                    "fontSize": 12,
-                    "fontFamily": "Arial, helvetica, sans-serif",
-                    "fill": "#000000",
-                    "textAnchor": "middle",
-                    "textVerticalAnchor": "middle"
-                  },
-                  "body": {
-                    "ref": "label",
-                    "fill": "#ffffff",
-                    "stroke": "#ffffff",
-                    "strokeWidth": 2,
-                    "refWidth": "120%",
-                    "refHeight": "120%",
-                    "refX": "-10%",
-                    "refY": "-10%"
-                  },
-                  "text": {
-                    "text": "Game state decision",
-                    "font-weight": "400",
-                    "font-size": "small"
-                  },
-                  "labelText": {
-                    "text": "Game state decision",
-                    "fontSize": 12,
-                    "fill": "#000000"
-                  },
-                  "labelBody": {
-                    "ref": "labelText",
-                    "fill": "#ffffff",
-                    "stroke": "#ffffff",
-                    "strokeWidth": 2
-                  }
-                },
-                "position": 0.546855148359814
-              }
+              "Game State Decision"
             ],
             "id": "cd180884-b5ac-4f5e-9a9a-7663d7dfad2e",
             "visible": true,
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "High",
-                "title": "Tampering with riddle_index",
-                "type": "Tampering",
-                "description": "The riddle_index comes from the POST form. A user can modify the request to skip riddles, replay riddles, or access an out-of-range index.",
-                "mitigation": "Store game progress server-side or in a signed session, validate riddle_index is in range, and ignore client-provided progress where possible.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "a34a9811-f76f-4258-b0a5-cf23fc7da444"
-              }
-            ],
+            "threats": [],
             "source": {
               "cell": "136ef51e-a199-433d-84ce-8b4d77670193"
             },
@@ -2098,19 +1586,7 @@
             ],
             "id": "bb15d30b-476f-4e0b-9cae-1161284e9731",
             "visible": true,
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "Plain text score manipulation",
-                "type": "Tampering",
-                "description": "Scores are stored in local text files with predictable names. A local attacker or path-traversal attempt could modify scores or append fake results.",
-                "mitigation": "Use a database or structured store with server-side validation, validate ownership, and avoid user input directly in filenames.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "09f6adb0-0451-4ae0-a828-9aea98c16edc"
-              }
-            ],
+            "threats": [],
             "source": {
               "cell": "cab0549b-83ad-4713-bf21-9a9262e57df4"
             },
@@ -2151,7 +1627,7 @@
             "connector": "smooth",
             "data": {
               "type": "tm.Flow",
-              "name": "Read templates",
+              "name": "Read Templates",
               "description": "",
               "outOfScope": false,
               "isTrustBoundary": false,
@@ -2167,61 +1643,11 @@
               ]
             },
             "labels": [
-              {
-                "attrs": {
-                  "label": {
-                    "text": "Read templates",
-                    "fontSize": 12,
-                    "fontFamily": "Arial, helvetica, sans-serif",
-                    "fill": "#000000",
-                    "textAnchor": "middle",
-                    "textVerticalAnchor": "middle"
-                  },
-                  "body": {
-                    "ref": "label",
-                    "fill": "#ffffff",
-                    "stroke": "#ffffff",
-                    "strokeWidth": 2,
-                    "refWidth": "120%",
-                    "refHeight": "120%",
-                    "refX": "-10%",
-                    "refY": "-10%"
-                  },
-                  "text": {
-                    "text": "Read templates",
-                    "font-weight": "400",
-                    "font-size": "small"
-                  },
-                  "labelText": {
-                    "text": "Read templates",
-                    "fontSize": 12,
-                    "fill": "#000000"
-                  },
-                  "labelBody": {
-                    "ref": "labelText",
-                    "fill": "#ffffff",
-                    "stroke": "#ffffff",
-                    "strokeWidth": 2
-                  }
-                },
-                "position": 0.5
-              }
+              "Read Templates"
             ],
             "id": "545faed0-dfd0-405b-9b52-645aa25ba720",
             "visible": true,
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "Stored or reflected script content in usernames/guesses",
-                "type": "Elevation of privilege",
-                "description": "User-controlled usernames and answers may be written to text files or rendered in templates. If escaping is disabled or bypassed, malicious HTML/JavaScript could execute in the browser.",
-                "mitigation": "Keep Jinja autoescaping enabled, never mark user input as safe, validate username characters, and escape displayed guesses/highscore entries.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "6a6afb56-18b8-416b-aa8b-b4c07f81b3eb"
-              }
-            ],
+            "threats": [],
             "source": {
               "cell": "0a899bb6-5657-4d94-9d49-24fbeaad4744"
             },
@@ -2257,7 +1683,7 @@
             "connector": "smooth",
             "data": {
               "type": "tm.Flow",
-              "name": "Riddle page data",
+              "name": "Riddle Page Data",
               "description": "",
               "outOfScope": false,
               "isTrustBoundary": false,
@@ -2271,72 +1697,11 @@
               "trustBoundaryIds": []
             },
             "labels": [
-              {
-                "attrs": {
-                  "label": {
-                    "text": "Riddle page data",
-                    "fontSize": 12,
-                    "fontFamily": "Arial, helvetica, sans-serif",
-                    "fill": "#000000",
-                    "textAnchor": "middle",
-                    "textVerticalAnchor": "middle"
-                  },
-                  "body": {
-                    "ref": "label",
-                    "fill": "#ffffff",
-                    "stroke": "#ffffff",
-                    "strokeWidth": 2,
-                    "refWidth": "120%",
-                    "refHeight": "120%",
-                    "refX": "-10%",
-                    "refY": "-10%"
-                  },
-                  "text": {
-                    "text": "Riddle page data",
-                    "font-weight": "400",
-                    "font-size": "small"
-                  },
-                  "labelText": {
-                    "text": "Riddle page data",
-                    "fontSize": 12,
-                    "fill": "#000000"
-                  },
-                  "labelBody": {
-                    "ref": "labelText",
-                    "fill": "#ffffff",
-                    "stroke": "#ffffff",
-                    "strokeWidth": 2
-                  }
-                },
-                "position": 0.5
-              }
+              "Riddle Page Data"
             ],
             "id": "0d1ff7b4-bb73-49ea-bdc0-e49d65f47a1f",
             "visible": true,
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "High",
-                "title": "Answer disclosure to template/browser",
-                "type": "Information disclosure",
-                "description": "The game process reads the answer file and passes the answers list into the template context. If rendered or exposed through debugging, players can see the answers.",
-                "mitigation": "Do not pass the full answers list to templates. Keep answer comparison server-side only and disable debug mode outside development.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "55ae0cea-e877-49fa-84df-51a74fba0561"
-              },
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "Stored or reflected script content in usernames/guesses",
-                "type": "Elevation of privilege",
-                "description": "User-controlled usernames and answers may be written to text files or rendered in templates. If escaping is disabled or bypassed, malicious HTML/JavaScript could execute in the browser.",
-                "mitigation": "Keep Jinja autoescaping enabled, never mark user input as safe, validate username characters, and escape displayed guesses/highscore entries.",
-                "modelType": "STRIDE",
-                "number": 2,
-                "threatId": "63620d62-48cf-4d7b-9150-30e75a8246f3"
-              }
-            ],
+            "threats": [],
             "source": {
               "cell": "136ef51e-a199-433d-84ce-8b4d77670193"
             },
@@ -2344,6 +1709,10 @@
               "cell": "9189fca6-e2c3-4498-991e-1c32ca010080"
             },
             "vertices": [
+              {
+                "x": 600,
+                "y": 220
+              },
               {
                 "x": 610,
                 "y": 210
@@ -2372,7 +1741,7 @@
             "connector": "smooth",
             "data": {
               "type": "tm.Flow",
-              "name": "Rendered HTML response",
+              "name": "Rendered HTML Response",
               "description": "",
               "outOfScope": false,
               "isTrustBoundary": false,
@@ -2388,72 +1757,11 @@
               ]
             },
             "labels": [
-              {
-                "attrs": {
-                  "label": {
-                    "text": "Rendered HTML response",
-                    "fontSize": 12,
-                    "fontFamily": "Arial, helvetica, sans-serif",
-                    "fill": "#000000",
-                    "textAnchor": "middle",
-                    "textVerticalAnchor": "middle"
-                  },
-                  "body": {
-                    "ref": "label",
-                    "fill": "#ffffff",
-                    "stroke": "#ffffff",
-                    "strokeWidth": 2,
-                    "refWidth": "120%",
-                    "refHeight": "120%",
-                    "refX": "-10%",
-                    "refY": "-10%"
-                  },
-                  "text": {
-                    "text": "Rendered HTML response",
-                    "font-weight": "400",
-                    "font-size": "small"
-                  },
-                  "labelText": {
-                    "text": "Rendered HTML response",
-                    "fontSize": 12,
-                    "fill": "#000000"
-                  },
-                  "labelBody": {
-                    "ref": "labelText",
-                    "fill": "#ffffff",
-                    "stroke": "#ffffff",
-                    "strokeWidth": 2
-                  }
-                },
-                "position": 0.5
-              }
+              "Rendered HTML Response"
             ],
             "id": "f71f58bb-d6c4-4f1c-abcf-0bbad4a5bfc4",
             "visible": true,
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "High",
-                "title": "Answer disclosure to template/browser",
-                "type": "Information disclosure",
-                "description": "The game process reads the answer file and passes the answers list into the template context. If rendered or exposed through debugging, players can see the answers.",
-                "mitigation": "Do not pass the full answers list to templates. Keep answer comparison server-side only and disable debug mode outside development.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "a1be957c-cef7-4702-ab07-9e078cc9e998"
-              },
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "Stored or reflected script content in usernames/guesses",
-                "type": "Elevation of privilege",
-                "description": "User-controlled usernames and answers may be written to text files or rendered in templates. If escaping is disabled or bypassed, malicious HTML/JavaScript could execute in the browser.",
-                "mitigation": "Keep Jinja autoescaping enabled, never mark user input as safe, validate username characters, and escape displayed guesses/highscore entries.",
-                "modelType": "STRIDE",
-                "number": 2,
-                "threatId": "196ba5f1-6e41-4559-8b09-6d728703ae81"
-              }
-            ],
+            "threats": [],
             "source": {
               "cell": "9189fca6-e2c3-4498-991e-1c32ca010080"
             },
@@ -2613,7 +1921,7 @@
             "connector": "smooth",
             "data": {
               "type": "tm.Flow",
-              "name": "Read riddles\nand answers",
+              "name": "Read Riddles\nand Answers",
               "description": "",
               "outOfScope": false,
               "isTrustBoundary": false,
@@ -2627,7 +1935,7 @@
               "trustBoundaryIds": []
             },
             "labels": [
-              "Read riddles\nand answers"
+              "Read Riddles\nand Answers"
             ],
             "id": "cf882da5-8a36-43d5-8284-10d4e83032e1",
             "visible": true,
@@ -2690,19 +1998,7 @@
             ],
             "id": "13c9ff82-a4f4-46a1-b05a-87cf37da2ebe",
             "visible": true,
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "High",
-                "title": "Answer disclosure to template/browser",
-                "type": "Information disclosure",
-                "description": "The game process reads the answer file and passes the answers list into the template context. If rendered or exposed through debugging, players can see the answers.",
-                "mitigation": "Do not pass the full answers list to templates. Keep answer comparison server-side only and disable debug mode outside development.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "60fad6d2-d8e0-49f9-8bf5-926030e59ff2"
-              }
-            ],
+            "threats": [],
             "source": {
               "x": 760,
               "y": 670
@@ -2761,19 +2057,7 @@
             ],
             "id": "6b7bab1c-ff15-4dcb-a791-772e1a56ccce",
             "visible": true,
-            "threats": [
-              {
-                "status": "Open",
-                "severity": "Medium",
-                "title": "Stored or reflected script content in usernames/guesses",
-                "type": "Elevation of privilege",
-                "description": "User-controlled usernames and answers may be written to text files or rendered in templates. If escaping is disabled or bypassed, malicious HTML/JavaScript could execute in the browser.",
-                "mitigation": "Keep Jinja autoescaping enabled, never mark user input as safe, validate username characters, and escape displayed guesses/highscore entries.",
-                "modelType": "STRIDE",
-                "number": 1,
-                "threatId": "ae3b63a6-c144-40d4-8ab9-0a4abe0b5c27"
-              }
-            ],
+            "threats": [],
             "source": {
               "x": 910,
               "y": 650
